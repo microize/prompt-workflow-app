@@ -86,19 +86,24 @@ const Canvas = () => {
     };
   }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
 
-  // Scroll to newly created node
+  // Modified scroll to newly created node without changing the zoom
   useEffect(() => {
-    if (lastCreatedNodeId && nodes.length > 0) {
+    if (lastCreatedNodeId && nodes.length > 0 && canvasRef.current) {
       const newNode = nodes.find(n => n.id === lastCreatedNodeId);
-      if (newNode && canvasRef.current) {
-        // Use a small delay to ensure the node is rendered
-        setTimeout(() => {
+      if (newNode) {
+        // Scroll to node without changing zoom
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const nodeX = newNode.position.x * zoomLevelRef.current + panOffsetRef.current.x;
+        const nodeY = newNode.position.y * zoomLevelRef.current + panOffsetRef.current.y;
+        
+        if (nodeX < 0 || nodeY < 0 || nodeX > canvasRect.width || nodeY > canvasRect.height) {
+          // Only scroll if the node is outside the visible area
           canvasRef.current.scrollTo({
-            left: Math.max(0, newNode.position.x - 100),
-            top: Math.max(0, newNode.position.y - 100),
+            left: Math.max(0, newNode.position.x - canvasRect.width / 2 + 100),
+            top: Math.max(0, newNode.position.y - canvasRect.height / 2 + 60),
             behavior: 'smooth'
           });
-        }, 50);
+        }
       }
     }
   }, [lastCreatedNodeId, nodes]);
@@ -134,6 +139,63 @@ const Canvas = () => {
     }
   }, []);
   
+  // Add a new function to zoom to fit all nodes
+  const zoomToFitAll = useCallback(() => {
+    if (!canvasRef.current || nodes.length === 0) return;
+    
+    // Find the bounding box of all nodes
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    
+    nodes.forEach(node => {
+      const x = node.position.x;
+      const y = node.position.y;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + 200); // Assume node width is 200px
+      maxY = Math.max(maxY, y + 120); // Assume node height is 120px
+    });
+    
+    // Add padding
+    const padding = 100;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+    
+    // Calculate required scale to fit all nodes
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const containerWidth = canvasRect.width;
+    const containerHeight = canvasRect.height;
+    
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    
+    const scaleX = containerWidth / contentWidth;
+    const scaleY = containerHeight / contentHeight;
+    const scale = Math.min(scaleX, scaleY, 1); // Don't zoom in more than 100%
+    
+    // Calculate center of the bounding box
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    
+    // Set new zoom level
+    zoomLevelRef.current = scale;
+    
+    // Calculate new pan offset to center the content
+    const newPanX = (containerWidth / 2 / scale) - centerX;
+    const newPanY = (containerHeight / 2 / scale) - centerY;
+    
+    panOffsetRef.current = { x: newPanX, y: newPanY };
+    
+    // Apply transform
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.style.transform = `scale(${scale}) translate(${newPanX}px, ${newPanY}px)`;
+    }
+  }, [nodes, canvasRef, canvasContainerRef]);
+  
   // Handle canvas panning - use middle mouse button or Ctrl+drag
   const handleCanvasMouseDown = useCallback((e) => {
     // Only initiate panning with middle mouse button (button 1) or Ctrl+left click
@@ -145,6 +207,7 @@ const Canvas = () => {
       // Change cursor during panning
       if (canvasRef.current) {
         canvasRef.current.style.cursor = 'grabbing';
+        canvasRef.current.classList.add('canvas-drag-mode');
       }
     }
   }, []);
@@ -175,6 +238,7 @@ const Canvas = () => {
       // Reset cursor
       if (canvasRef.current) {
         canvasRef.current.style.cursor = '';
+        canvasRef.current.classList.remove('canvas-drag-mode');
       }
     };
     
@@ -360,7 +424,7 @@ const Canvas = () => {
   return (
     <div className="flex-1 relative overflow-hidden bg-neutral-50">
       {/* Zoom controls */}
-      <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-md p-2 flex flex-col space-y-2">
+      <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-md p-2 flex flex-col space-y-2 zoom-controls">
         <button 
           onClick={() => handleZoom(true)}
           className="p-1 hover:bg-gray-100 rounded-md" 
@@ -374,6 +438,13 @@ const Canvas = () => {
           title="Zoom Out"
         >
           <ZoomOut size={18} />
+        </button>
+        <button 
+          onClick={zoomToFitAll}
+          className="p-1 hover:bg-gray-100 rounded-md fit-all-btn"
+          title="Fit All Nodes"
+        >
+          <Maximize size={18} />
         </button>
         <button 
           onClick={handleFullscreen}
@@ -402,8 +473,12 @@ const Canvas = () => {
         {/* Transformable content container */}
         <div 
           ref={canvasContainerRef}
-          className="min-w-full min-h-full origin-center relative transition-transform duration-100"
-          style={{ width: '3000px', height: '3000px' }}
+          className="min-w-full min-h-full origin-center relative transition-transform duration-100 infinite-canvas"
+          style={{ 
+            width: '8000px', 
+            height: '8000px',
+            transform: `scale(${zoomLevelRef.current}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`
+          }}
         >
           {/* Grid Background */}
           <div className="absolute inset-0 bg-grid-pattern"></div>

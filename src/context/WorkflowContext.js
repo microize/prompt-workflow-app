@@ -23,6 +23,9 @@ export const WorkflowContextProvider = ({ children }) => {
   const [potentialTarget, setPotentialTarget] = useState(null);
   const [lastCreatedNodeId, setLastCreatedNodeId] = useState(null);
   const canvasRef = useRef(null);
+  const canvasContainerRef = useRef(null); // Added for zoom/pan tracking
+  const zoomLevelRef = useRef(1); // For tracking current zoom level
+  const panOffsetRef = useRef({ x: 0, y: 0 }); // For tracking current pan offset
   
   // Load selected workflow if one is chosen
   useEffect(() => {
@@ -174,26 +177,28 @@ export const WorkflowContextProvider = ({ children }) => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [canvasRef, currentNode, isDragging, nodeDragStart, startPosition]);
-  
-  // Improved canvas mouse move handler
+
+  // IMPROVED: Enhanced canvas mouse move handler with better zoom/pan handling
   const handleCanvasMouseMove = useCallback((e) => {
-    // Only handle connection drawing logic here if we're not using the direct event listener
-    if (isDrawingConnection && connectionStart && !window.currentMoveHandler) {
-      // Get canvas coordinates
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const canvasX = e.clientX - canvasRect.left + canvasRef.current.scrollLeft;
-      const canvasY = e.clientY - canvasRect.top + canvasRef.current.scrollTop;
+    // Only handle connection drawing logic if we're in drawing mode
+    if (isDrawingConnection && connectionStart) {
+      // Get the current zoom level and pan offset from the transform style
+      const zoomLevel = parseFloat(canvasContainerRef.current?.style.transform?.match(/scale\(([^)]+)\)/) || [0, 1])[1] || 1;
+      const panX = parseFloat(canvasContainerRef.current?.style.transform?.match(/translate\(([^p,]+)px/) || [0, 0])[1] || 0;
+      const panY = parseFloat(canvasContainerRef.current?.style.transform?.match(/translate\([^p,]+px,\s*([^p]+)px/) || [0, 0])[1] || 0;
       
-      // Update connectionEnd for responsive feedback
+      // Get canvas coordinates with zoom and pan adjustment
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const canvasX = (e.clientX - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevel - panX;
+      const canvasY = (e.clientY - canvasRect.top + canvasRef.current.scrollTop) / zoomLevel - panY;
+      
+      // Update connectionEnd position
       setConnectionEnd({
         x: canvasX,
         y: canvasY
       });
-    }
-    
-    // Check if we're hovering over a potential connection target
-    if (isDrawingConnection && connectionStart) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
+      
+      // Check if we're hovering over a potential connection target
       const handleElements = document.querySelectorAll('[data-handle-type="input"]');
       let foundTarget = null;
       
@@ -205,22 +210,29 @@ export const WorkflowContextProvider = ({ children }) => {
         // Skip if we're trying to connect to the same node
         if (nodeId === connectionStart.nodeId) continue;
         
-        const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
-        const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+        // Calculate position in canvas coordinates with zoom and pan adjustment
+        const centerX = (rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2) / zoomLevel - panX;
+        const centerY = (rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2) / zoomLevel - panY;
         
-        // Calculate distance - using square of distance for performance
+        // Calculate distance
         const distanceSquared = 
-          Math.pow(connectionEnd.x - centerX, 2) + 
-          Math.pow(connectionEnd.y - centerY, 2);
+          Math.pow(canvasX - centerX, 2) + 
+          Math.pow(canvasY - centerY, 2);
         
-        // Using squared distance: 20px radius => 400px² threshold
-        if (distanceSquared < 400) {
+        // Using squared distance: 30px radius => 900px² threshold (increased for better usability)
+        if (distanceSquared < 900) {
           foundTarget = {
             nodeId,
             x: centerX,
             y: centerY
           };
-          break; // Exit early once we found a valid target
+          
+          // Add highlight class to potential target
+          handleEl.classList.add('potential-target');
+          break;
+        } else {
+          // Remove highlight from non-targets
+          handleEl.classList.remove('potential-target');
         }
       }
       
@@ -229,9 +241,9 @@ export const WorkflowContextProvider = ({ children }) => {
         setPotentialTarget(foundTarget);
       }
     }
-  }, [isDrawingConnection, connectionStart, connectionEnd, potentialTarget, canvasRef]);
-  
-  // Enhanced startConnectionDraw with immediate visual feedback
+  }, [isDrawingConnection, connectionStart, potentialTarget, canvasRef, canvasContainerRef]);
+
+  // IMPROVED: Enhanced startConnectionDraw with better position calculation and visual feedback
   const startConnectionDraw = useCallback((e, node, handleType) => {
     e.stopPropagation();
     e.preventDefault();
@@ -247,15 +259,13 @@ export const WorkflowContextProvider = ({ children }) => {
     const rect = handleElement.getBoundingClientRect();
     const canvasRect = canvasRef.current.getBoundingClientRect();
     
-    // Calculate position relative to the canvas
-    const startX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
-    const startY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+    // Calculate position relative to the canvas with zoom level consideration
+    const zoomLevel = parseFloat(canvasContainerRef.current?.style.transform?.match(/scale\(([^)]+)\)/) || [0, 1])[1] || 1;
+    const panX = parseFloat(canvasContainerRef.current?.style.transform?.match(/translate\(([^p,]+)px/) || [0, 0])[1] || 0;
+    const panY = parseFloat(canvasContainerRef.current?.style.transform?.match(/translate\([^p,]+px,\s*([^p]+)px/) || [0, 0])[1] || 0;
     
-    // Initialize both connection points at the same position for smooth animation
-    const initialPosition = {
-      x: startX,
-      y: startY
-    };
+    const startX = (rect.left - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevel + rect.width / 2;
+    const startY = (rect.top - canvasRect.top + canvasRef.current.scrollTop) / zoomLevel + rect.height / 2;
     
     setConnectionStart({
       nodeId: node.id,
@@ -263,17 +273,25 @@ export const WorkflowContextProvider = ({ children }) => {
       y: startY
     });
     
-    // Initialize end position at the same point - will be updated on mouse move
-    setConnectionEnd(initialPosition);
+    // Initialize end position at the same point for smooth animation
+    setConnectionEnd({
+      x: startX,
+      y: startY
+    });
     
     // Add a class to the document body to indicate connection drawing mode
     document.body.classList.add('connection-drawing-mode');
     
-    // Create a custom event listener for immediate movement tracking
+    // Make the input handles more visible by adding a class to the canvas
+    if (canvasRef.current) {
+      canvasRef.current.classList.add('showing-input-handles');
+    }
+    
+    // Create a custom event listener for immediate movement tracking with zoom consideration
     const moveHandler = (moveEvent) => {
-      // Get cursor position relative to canvas
-      const canvasX = moveEvent.clientX - canvasRect.left + canvasRef.current.scrollLeft;
-      const canvasY = moveEvent.clientY - canvasRect.top + canvasRef.current.scrollTop;
+      // Get cursor position relative to canvas with zoom and pan adjustment
+      const canvasX = (moveEvent.clientX - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevel - panX;
+      const canvasY = (moveEvent.clientY - canvasRect.top + canvasRef.current.scrollTop) / zoomLevel - panY;
       
       // Immediately update the connection end point
       setConnectionEnd({
@@ -293,22 +311,28 @@ export const WorkflowContextProvider = ({ children }) => {
         // Skip if we're trying to connect to the same node
         if (nodeId === node.id) continue;
         
-        const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
-        const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+        const centerX = (rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2) / zoomLevel - panX;
+        const centerY = (rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2) / zoomLevel - panY;
         
-        // Calculate distance
+        // Calculate distance - using square of distance for performance
         const distanceSquared = 
           Math.pow(canvasX - centerX, 2) + 
           Math.pow(canvasY - centerY, 2);
         
-        // Using squared distance: 20px radius => 400px² threshold
-        if (distanceSquared < 400) {
+        // Using squared distance: 30px radius => 900px² threshold (increased for better usability)
+        if (distanceSquared < 900) {
           foundTarget = {
             nodeId,
             x: centerX,
             y: centerY
           };
-          break; 
+          
+          // Add highlight class to potential target
+          handleEl.classList.add('potential-target');
+          break;
+        } else {
+          // Remove highlight from non-targets
+          handleEl.classList.remove('potential-target');
         }
       }
       
@@ -321,8 +345,82 @@ export const WorkflowContextProvider = ({ children }) => {
     
     // Store the handler to remove it later
     window.currentMoveHandler = moveHandler;
-  }, [canvasRef]);
-  
+  }, [canvasRef, canvasContainerRef]);
+
+  // IMPROVED: Enhanced endConnectionDraw with better position calculation and error handling
+  const endConnectionDraw = useCallback((e, node, handleType) => {
+    // Only allow ending on input handles
+    if (handleType !== 'input' || !isDrawingConnection || !connectionStart) return;
+    
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Clean up the immediate movement handler
+    if (window.currentMoveHandler) {
+      document.removeEventListener('mousemove', window.currentMoveHandler);
+      window.currentMoveHandler = null;
+    }
+    
+    // Remove all potential-target classes
+    document.querySelectorAll('.potential-target').forEach(el => {
+      el.classList.remove('potential-target');
+    });
+    
+    // Only create connection if we have a valid start and it's not the same node
+    if (connectionStart.nodeId !== node.id) {
+      const newConnection = {
+        id: `conn-${connectionStart.nodeId}-${node.id}-${Date.now()}`,
+        source: connectionStart.nodeId,
+        target: node.id
+      };
+      
+      // Check for duplicates
+      const isDuplicate = connections.some(conn => 
+        conn.source === newConnection.source && conn.target === newConnection.target
+      );
+      
+      // Check for cycles between just these two nodes
+      const hasReverseConnection = connections.some(conn => 
+        conn.source === newConnection.target && conn.target === newConnection.source
+      );
+      
+      if (!isDuplicate) {
+        // Add visual feedback for successful connection
+        const handleElement = e.currentTarget;
+        
+        // Add a success animation class
+        handleElement.classList.add('connection-success');
+        
+        // Remove the class after animation completes
+        setTimeout(() => {
+          handleElement.classList.remove('connection-success');
+        }, 500);
+        
+        setConnections(prev => [...prev, newConnection]);
+      } else {
+        // Visual feedback for duplicate connection
+        const handleElement = e.currentTarget;
+        handleElement.classList.add('connection-error');
+        
+        setTimeout(() => {
+          handleElement.classList.remove('connection-error');
+        }, 500);
+      }
+    }
+    
+    // Reset connection drawing state
+    setIsDrawingConnection(false);
+    setConnectionStart(null);
+    setConnectionEnd({ x: 0, y: 0 });
+    setPotentialTarget(null);
+    
+    // Remove drawing mode class from document and canvas
+    document.body.classList.remove('connection-drawing-mode');
+    if (canvasRef.current) {
+      canvasRef.current.classList.remove('showing-input-handles');
+    }
+  }, [isDrawingConnection, connectionStart, connections, canvasRef]);
+
   // Clean up connection drawing mode class when needed
   useEffect(() => {
     if (!isDrawingConnection) {
@@ -333,6 +431,11 @@ export const WorkflowContextProvider = ({ children }) => {
         document.removeEventListener('mousemove', window.currentMoveHandler);
         window.currentMoveHandler = null;
       }
+      
+      // Remove showing-input-handles class
+      if (canvasRef.current) {
+        canvasRef.current.classList.remove('showing-input-handles');
+      }
     }
     
     return () => {
@@ -341,8 +444,27 @@ export const WorkflowContextProvider = ({ children }) => {
         document.removeEventListener('mousemove', window.currentMoveHandler);
         window.currentMoveHandler = null;
       }
+      if (canvasRef.current) {
+        canvasRef.current.classList.remove('showing-input-handles');
+      }
     };
-  }, [isDrawingConnection]);
+  }, [isDrawingConnection, canvasRef]);
+  
+  // NEW: Reset canvas view function
+  const resetCanvasView = useCallback(() => {
+    if (!canvasRef.current || !canvasContainerRef.current) return;
+    
+    // Reset zoom and pan
+    const zoomLevel = 1;
+    const panOffset = { x: 0, y: 0 };
+    
+    // Update references
+    zoomLevelRef.current = zoomLevel;
+    panOffsetRef.current = panOffset;
+    
+    // Apply transform
+    canvasContainerRef.current.style.transform = `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`;
+  }, [canvasRef, canvasContainerRef]);
   
   // Improved canvas mouse up handler
   const handleCanvasMouseUp = useCallback((e) => {
@@ -356,7 +478,7 @@ export const WorkflowContextProvider = ({ children }) => {
     if (isDrawingConnection && potentialTarget) {
       // Create new connection
       const newConnection = {
-        id: `conn-${connectionStart.nodeId}-${potentialTarget.nodeId}`,
+        id: `conn-${connectionStart.nodeId}-${potentialTarget.nodeId}-${Date.now()}`,
         source: connectionStart.nodeId,
         target: potentialTarget.nodeId
       };
@@ -378,48 +500,18 @@ export const WorkflowContextProvider = ({ children }) => {
       setConnectionEnd({ x: 0, y: 0 });
       setPotentialTarget(null);
       document.body.classList.remove('connection-drawing-mode');
-    }
-  }, [isDrawingConnection, potentialTarget, connectionStart, connections]);
-  
-  // Connection drawing end point handler
-  const endConnectionDraw = useCallback((e, node, handleType) => {
-    // Only allow ending on input handles
-    if (handleType !== 'input' || !isDrawingConnection || !connectionStart) return;
-    
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Clean up the immediate movement handler
-    if (window.currentMoveHandler) {
-      document.removeEventListener('mousemove', window.currentMoveHandler);
-      window.currentMoveHandler = null;
-    }
-    
-    // Only create connection if we have a valid start and it's not the same node
-    if (connectionStart.nodeId !== node.id) {
-      const newConnection = {
-        id: `conn-${connectionStart.nodeId}-${node.id}`,
-        source: connectionStart.nodeId,
-        target: node.id
-      };
       
-      // Check for duplicates
-      const isDuplicate = connections.some(conn => 
-        conn.source === newConnection.source && conn.target === newConnection.target
-      );
-      
-      if (!isDuplicate) {
-        setConnections(prev => [...prev, newConnection]);
+      // Remove showing-input-handles class
+      if (canvasRef.current) {
+        canvasRef.current.classList.remove('showing-input-handles');
       }
+      
+      // Remove all potential-target classes
+      document.querySelectorAll('.potential-target').forEach(el => {
+        el.classList.remove('potential-target');
+      });
     }
-    
-    // Reset connection drawing state
-    setIsDrawingConnection(false);
-    setConnectionStart(null);
-    setConnectionEnd({ x: 0, y: 0 });
-    setPotentialTarget(null);
-    document.body.classList.remove('connection-drawing-mode');
-  }, [isDrawingConnection, connectionStart, connections]);
+  }, [isDrawingConnection, potentialTarget, connectionStart, connections, canvasRef]);
   
   // Improved node deletion with confirmation
   const deleteNode = useCallback((nodeId) => {
@@ -575,6 +667,7 @@ export const WorkflowContextProvider = ({ children }) => {
     connectionEnd,
     potentialTarget,
     canvasRef,
+    canvasContainerRef, // Added for zoom/pan functionality
     lastCreatedNodeId,
     
     // Functions
@@ -591,7 +684,8 @@ export const WorkflowContextProvider = ({ children }) => {
     handleNodeTitleChange,
     clearCanvas,
     exportWorkflow,
-    importWorkflow
+    importWorkflow,
+    resetCanvasView, // Added new function
   };
 
   return (

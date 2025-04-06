@@ -252,6 +252,7 @@ const WorkflowNode = ({ node }) => {
                    flex items-center justify-center hover:scale-110 transition-transform z-20 connection-handle input-handle`}
         data-handle-type="input"
         data-node-id={node.id}
+        data-node-type={node.type}
         onMouseUp={(e) => endConnectionDraw(e, node, 'input')}
         onMouseEnter={handleInputMouseEnter}
         onMouseLeave={handleInputMouseLeave}
@@ -267,6 +268,7 @@ const WorkflowNode = ({ node }) => {
                    flex items-center justify-center hover:scale-110 transition-transform z-20 connection-handle output-handle`}
         data-handle-type="output"
         data-node-id={node.id}
+        data-node-type={node.type}
         onMouseDown={(e) => startConnectionDraw(e, node, 'output')}
         onMouseEnter={handleOutputMouseEnter}
         onMouseLeave={handleOutputMouseLeave}
