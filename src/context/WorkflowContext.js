@@ -80,8 +80,8 @@ export const WorkflowContextProvider = ({ children }) => {
     } else {
       // Default position in the center or with some randomness
       nodePosition = {
-        x: Math.max(50, Math.random() * (canvasRect.width - 250)),
-        y: Math.max(50, Math.random() * (canvasRect.height - 150))
+        x: Math.max(50, Math.random() * ((canvasRect.width / 2) - 250) + 100),
+        y: Math.max(50, Math.random() * ((canvasRect.height / 2) - 150) + 100)
       };
     }
     

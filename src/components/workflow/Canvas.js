@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useDrop } from 'react-dnd';
 import { GitBranch, Plus, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import WorkflowNode from './WorkflowNode';
@@ -29,6 +30,28 @@ const Canvas = () => {
   // Pan state for drag-to-pan functionality
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+  // Set up React DnD drop target
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: 'WORKFLOW_NODE',
+    drop: (item, monitor) => {
+      if (!canvasRef.current) return;
+      
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const dropOffset = monitor.getClientOffset();
+      
+      // Calculate position considering scroll and zoom
+      const x = (dropOffset.x - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current;
+      const y = (dropOffset.y - canvasRect.top + canvasRef.current.scrollTop) / zoomLevelRef.current;
+      
+      // Add node at the drop position
+      addNewNode(item.nodeType, { x, y });
+      return { moved: true };
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver()
+    })
+  }), [addNewNode]);
 
   // Add event listeners for the canvas
   useEffect(() => {
@@ -261,8 +284,14 @@ const Canvas = () => {
       </div>
       
       <div 
-        ref={canvasRef}
-        className="w-full h-full overflow-auto relative" 
+        ref={(node) => {
+          // Combine React's ref with React DnD's drop ref
+          if (node) {
+            canvasRef.current = node;
+            drop(node);
+          }
+        }}
+        className={`w-full h-full overflow-auto relative ${isOver ? 'bg-blue-50 bg-opacity-30' : ''}`}
         onContextMenu={handleContextMenu}
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
@@ -422,6 +451,7 @@ const Canvas = () => {
         <p>Right-click: Add node</p>
         <p>Ctrl+Drag: Pan canvas</p>
         <p>Ctrl+Wheel: Zoom</p>
+        <p>Drag from left panel: Add node</p>
       </div>
     </div>
   );

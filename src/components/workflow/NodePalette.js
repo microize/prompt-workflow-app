@@ -1,74 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, GitBranch, Search, X, BookOpen, Play } from 'lucide-react';
+import { useDrag } from 'react-dnd';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import Badge from '../common/Badge';
+
+// Create a draggable component for workflow nodes
+const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'WORKFLOW_NODE',
+    item: { nodeType },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging()
+    })
+  }));
+
+  // Determine color classes based on node type
+  const getColorClasses = () => {
+    switch (nodeType) {
+      case 'prompt':
+        return 'bg-blue-50 border-blue-100';
+      case 'action':
+        return 'bg-purple-50 border-purple-100';
+      case 'condition':
+        return 'bg-amber-50 border-amber-100';
+      default:
+        return 'bg-neutral-50 border-neutral-100';
+    }
+  };
+
+  return (
+    <div
+      ref={drag}
+      className={`${getColorClasses()} border p-3 rounded-lg cursor-move flex items-center gap-2 ${
+        isDragging ? 'opacity-50' : 'hover:shadow-md'
+      } transition-all`}
+    >
+      {icon}
+      <div>
+        <p className="font-medium text-sm">{title}</p>
+        <p className="text-xs text-neutral-500">{description}</p>
+      </div>
+    </div>
+  );
+};
 
 const NodePalette = ({ workflows }) => {
   const { addNewNode, canvasRef } = useWorkflowContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [showTemplateDetails, setShowTemplateDetails] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Enhanced drag handling with better visual feedback
-  const handleDragStart = (e, nodeType) => {
-    e.dataTransfer.setData('nodeType', nodeType);
-    e.dataTransfer.effectAllowed = 'copy';
-    setIsDragging(true);
-    
-    // Create a custom drag image
-    const ghostEl = document.createElement('div');
-    ghostEl.innerHTML = `
-      <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 150px;">
-        <div style="font-weight: 500; font-size: 14px;">${
-          nodeType === 'prompt' ? 'Prompt Node' : 
-          nodeType === 'action' ? 'Action Node' : 'Condition Node'
-        }</div>
-      </div>
-    `;
-    const dragImage = ghostEl.firstChild;
-    document.body.appendChild(dragImage);
-    
-    // Position it offscreen so it can be captured
-    dragImage.style.position = 'absolute';
-    dragImage.style.top = '-1000px';
-    dragImage.style.left = '-1000px';
-    
-    // Set the drag image with correct offset
-    e.dataTransfer.setDragImage(dragImage, 75, 30);
-    
-    // Remove the element after drag starts
-    setTimeout(() => {
-      document.body.removeChild(dragImage);
-    }, 100);
-  };
-  
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
-
-  // Handle the drop on canvas - implementation is now in the useEffect below
-  const handleCanvasDrop = (e) => {
-    e.preventDefault();
-    
-    if (!canvasRef.current) return;
-    
-    const nodeType = e.dataTransfer.getData('nodeType');
-    if (!nodeType) return;
-    
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    
-    // Calculate drop position considering scroll position
-    const dropX = e.clientX - canvasRect.left + canvasRef.current.scrollLeft;
-    const dropY = e.clientY - canvasRect.top + canvasRef.current.scrollTop;
-    
-    // Add the node at the drop position
-    addNewNode(nodeType, { x: dropX - 100, y: dropY - 30 });
-  };
-
-  // Handle double-click on component
-  const handleDoubleClick = (nodeType) => {
-    addNewNode(nodeType);
-  };
 
   // Filter workflows based on search term
   const filteredWorkflows = workflows.filter(workflow => 
@@ -91,41 +70,10 @@ const NodePalette = ({ workflows }) => {
     }
   };
 
-  // Set up event listeners for canvas drop zone
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    
-    const handleDragOver = (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      
-      // Add a visual indicator that the canvas is a drop target
-      canvas.classList.add('bg-blue-50', 'bg-opacity-30');
-    };
-    
-    const handleDragLeave = () => {
-      // Remove the visual indicator when drag leaves
-      canvas.classList.remove('bg-blue-50', 'bg-opacity-30');
-    };
-    
-    const handleDrop = (e) => {
-      // Remove the visual indicator
-      canvas.classList.remove('bg-blue-50', 'bg-opacity-30');
-      handleCanvasDrop(e);
-    };
-    
-    canvas.addEventListener('dragover', handleDragOver);
-    canvas.addEventListener('dragleave', handleDragLeave);
-    canvas.addEventListener('drop', handleDrop);
-    
-    return () => {
-      canvas.removeEventListener('dragover', handleDragOver);
-      canvas.removeEventListener('dragleave', handleDragLeave);
-      canvas.removeEventListener('drop', handleDrop);
-    };
-  }, [canvasRef, handleCanvasDrop]);
+  // Handle double-click on component
+  const handleDoubleClick = (nodeType) => {
+    addNewNode(nodeType);
+  };
 
   return (
     <div className="w-64 border-r border-neutral-200 flex flex-col h-full bg-white">
@@ -134,55 +82,31 @@ const NodePalette = ({ workflows }) => {
         <h3 className="font-medium text-neutral-700 mb-3">Components</h3>
         
         <div className="space-y-2">
-          <div 
-            className={`bg-blue-50 border border-blue-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
-              isDragging ? 'opacity-50' : 'hover:shadow-md'
-            } transition-all`}
-            draggable="true"
-            onDragStart={(e) => handleDragStart(e, 'prompt')}
-            onDragEnd={handleDragEnd}
-            onDoubleClick={() => handleDoubleClick('prompt')}
-            title="Drag to canvas or double-click to add"
-          >
-            <Sparkles size={16} className="text-primary-500 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-sm">Prompt Node</p>
-              <p className="text-xs text-neutral-500">AI prompt template</p>
-            </div>
+          <div onDoubleClick={() => handleDoubleClick('prompt')}>
+            <DraggableNodeItem 
+              nodeType="prompt"
+              icon={<Sparkles size={16} className="text-primary-500 flex-shrink-0" />}
+              title="Prompt Node"
+              description="AI prompt template"
+            />
           </div>
           
-          <div 
-            className={`bg-purple-50 border border-purple-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
-              isDragging ? 'opacity-50' : 'hover:shadow-md'
-            } transition-all`}
-            draggable="true"
-            onDragStart={(e) => handleDragStart(e, 'action')}
-            onDragEnd={handleDragEnd}
-            onDoubleClick={() => handleDoubleClick('action')}
-            title="Drag to canvas or double-click to add"
-          >
-            <ArrowRight size={16} className="text-purple-500 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-sm">Action Node</p>
-              <p className="text-xs text-neutral-500">Process or transform</p>
-            </div>
+          <div onDoubleClick={() => handleDoubleClick('action')}>
+            <DraggableNodeItem 
+              nodeType="action"
+              icon={<ArrowRight size={16} className="text-purple-500 flex-shrink-0" />}
+              title="Action Node"
+              description="Process or transform"
+            />
           </div>
           
-          <div 
-            className={`bg-amber-50 border border-amber-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
-              isDragging ? 'opacity-50' : 'hover:shadow-md'
-            } transition-all`}
-            draggable="true"
-            onDragStart={(e) => handleDragStart(e, 'condition')}
-            onDragEnd={handleDragEnd}
-            onDoubleClick={() => handleDoubleClick('condition')}
-            title="Drag to canvas or double-click to add"
-          >
-            <GitBranch size={16} className="text-secondary-500 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-sm">Condition Node</p>
-              <p className="text-xs text-neutral-500">Branch your workflow</p>
-            </div>
+          <div onDoubleClick={() => handleDoubleClick('condition')}>
+            <DraggableNodeItem 
+              nodeType="condition"
+              icon={<GitBranch size={16} className="text-secondary-500 flex-shrink-0" />}
+              title="Condition Node"
+              description="Branch your workflow"
+            />
           </div>
         </div>
       </div>
