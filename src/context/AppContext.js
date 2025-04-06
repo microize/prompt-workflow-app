@@ -33,7 +33,7 @@ export const AppContextProvider = ({ children }) => {
   };
 
   // Derived state
-  const popularPrompts = [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 3);
+  const popularPrompts = [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10);
 
   // Functions
   const openPlayground = (prompt) => {

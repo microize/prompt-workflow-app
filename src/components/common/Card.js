@@ -24,7 +24,7 @@ const Card = ({
 }) => {
   return (
     <div 
-      className={`bg-white rounded-xl border border-neutral-200 shadow-card hover:shadow-card-hover transition-shadow overflow-hidden ${className}`}
+      className={`bg-white rounded-xl border border-neutral-200 shadow-sm hover:shadow transition-shadow overflow-hidden ${className}`}
       {...rest}
     >
       {(title || headerActions) && (

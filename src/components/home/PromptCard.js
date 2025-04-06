@@ -72,9 +72,9 @@ const PromptCard = ({ prompt, type }) => {
   };
 
   return (
-    <div className="p-4 hover:bg-neutral-50 transition-colors cursor-pointer card-hover-effect">
-      <div className="flex justify-between">
-        <p className="text-neutral-700 line-clamp-1">{prompt.text}</p>
+    <div className="p-4 hover:bg-neutral-50 transition-colors cursor-pointer card-hover-effect scroll-card-effect">
+      <div className="flex justify-between pr-1">
+        <p className="text-neutral-700 line-clamp-1 pr-2">{prompt.text}</p>
         {renderMetadata()}
       </div>
       <div className="flex mt-3 justify-between">

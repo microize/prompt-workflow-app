@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useRef } from 'react';
+import React, { createContext, useState, useContext, useRef, useCallback } from 'react';
 
 // Create context
 const WorkflowContext = createContext();
@@ -17,30 +17,41 @@ export const WorkflowContextProvider = ({ children }) => {
   const [isDrawingConnection, setIsDrawingConnection] = useState(false);
   const [connectionStart, setConnectionStart] = useState(null);
   const [connectionEnd, setConnectionEnd] = useState({ x: 0, y: 0 });
+  const [potentialTarget, setPotentialTarget] = useState(null);
   const canvasRef = useRef(null);
 
   // Functions for managing nodes
-  const addNewNode = (type) => {
+  const addNewNode = useCallback((type, position = null) => {
     if (!canvasRef.current) return;
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
+    let nodePosition;
+    
+    if (position) {
+      nodePosition = position;
+    } else {
+      // Default position in the center or with some randomness
+      nodePosition = {
+        x: Math.max(50, Math.random() * (canvasRect.width - 250)),
+        y: Math.max(50, Math.random() * (canvasRect.height - 150))
+      };
+    }
+    
     const newNode = {
-      id: Date.now(),
+      id: Date.now().toString(),
       type: type,
       title: type === 'prompt' ? 'New Prompt' : 
              type === 'action' ? 'New Action' : 'New Condition',
-      position: {
-        x: canvasRect.width / 2 - 100, 
-        y: canvasRect.height / 2 - 60
-      },
+      position: nodePosition,
       content: type === 'prompt' ? 'Enter your prompt here...' : 
                type === 'action' ? 'Action configuration' : 'Condition settings'
     };
     
-    setNodes([...nodes, newNode]);
-  };
+    setNodes(prevNodes => [...prevNodes, newNode]);
+    return newNode;
+  }, [canvasRef]);
   
-  const handleNodeMouseDown = (e, node) => {
+  const handleNodeMouseDown = useCallback((e, node) => {
     e.stopPropagation();
     setIsDragging(true);
     setCurrentNode(node);
@@ -52,14 +63,15 @@ export const WorkflowContextProvider = ({ children }) => {
       x: node.position.x,
       y: node.position.y
     });
-  };
+  }, []);
   
-  const handleCanvasMouseMove = (e) => {
+  const handleCanvasMouseMove = useCallback((e) => {
+    // Node dragging
     if (isDragging && currentNode) {
       const dx = e.clientX - startPosition.x;
       const dy = e.clientY - startPosition.y;
       
-      setNodes(nodes.map(node => {
+      setNodes(prevNodes => prevNodes.map(node => {
         if (node.id === currentNode.id) {
           return {
             ...node,
@@ -73,69 +85,129 @@ export const WorkflowContextProvider = ({ children }) => {
       }));
     }
     
-    if (isDrawingConnection) {
+    // Connection drawing
+    if (isDrawingConnection && connectionStart) {
       setConnectionEnd({
-        x: e.clientX - canvasRef.current.getBoundingClientRect().left,
-        y: e.clientY - canvasRef.current.getBoundingClientRect().top
+        x: e.clientX,
+        y: e.clientY
       });
-    }
-  };
-  
-  const handleCanvasMouseUp = () => {
-    setIsDragging(false);
-    setCurrentNode(null);
-    
-    if (isDrawingConnection) {
-      // Find if there's a node at the end position
-      const targetNode = nodes.find(node => {
-        const nodeRect = {
-          left: node.position.x,
-          right: node.position.x + 200,
-          top: node.position.y,
-          bottom: node.position.y + 120
-        };
+      
+      // Check if we're hovering over a potential connection target
+      const handleElements = document.querySelectorAll('[data-handle-type="input"]');
+      let foundTarget = null;
+      
+      handleElements.forEach(handleEl => {
+        const rect = handleEl.getBoundingClientRect();
+        const nodeId = handleEl.getAttribute('data-node-id');
         
-        return connectionEnd.x >= nodeRect.left && connectionEnd.x <= nodeRect.right &&
-               connectionEnd.y >= nodeRect.top && connectionEnd.y <= nodeRect.bottom &&
-               node.id !== connectionStart.id;
+        // Make sure we're not trying to connect to the same node
+        if (nodeId !== connectionStart.nodeId) {
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.sqrt(
+            Math.pow(e.clientX - centerX, 2) + 
+            Math.pow(e.clientY - centerY, 2)
+          );
+          
+          // If cursor is within 20px of the handle center
+          if (distance < 20) {
+            foundTarget = {
+              nodeId,
+              x: centerX,
+              y: centerY
+            };
+          }
+        }
       });
       
-      if (targetNode) {
-        setConnections([
-          ...connections,
-          {
-            id: Date.now(),
-            source: connectionStart.id,
-            target: targetNode.id
-          }
-        ]);
-      }
+      setPotentialTarget(foundTarget);
+    }
+  }, [isDragging, currentNode, startPosition, nodeDragStart, isDrawingConnection, connectionStart]);
+  
+  const handleCanvasMouseUp = useCallback((e) => {
+    // Release dragged node
+    if (isDragging) {
+      setIsDragging(false);
+      setCurrentNode(null);
+    }
+    
+    // Finish connection drawing if we have a target
+    if (isDrawingConnection && potentialTarget) {
+      // Create new connection
+      const newConnection = {
+        id: `conn-${connectionStart.nodeId}-${potentialTarget.nodeId}`,
+        source: connectionStart.nodeId,
+        target: potentialTarget.nodeId
+      };
       
+      // Check if connection already exists
+      const isDuplicate = connections.some(conn => 
+        conn.source === newConnection.source && conn.target === newConnection.target
+      );
+      
+      if (!isDuplicate) {
+        setConnections(prev => [...prev, newConnection]);
+      }
+    }
+    
+    // Reset connection drawing state
+    if (isDrawingConnection) {
       setIsDrawingConnection(false);
       setConnectionStart(null);
+      setConnectionEnd({ x: 0, y: 0 });
+      setPotentialTarget(null);
     }
-  };
+  }, [isDrawingConnection, potentialTarget, connectionStart, connections]);
   
-  const startConnectionDraw = (e, node) => {
+  const startConnectionDraw = useCallback((e, node, handleType) => {
     e.stopPropagation();
+    
+    // Only allow starting connection from output handle
+    if (handleType !== 'output') return;
+    
     setIsDrawingConnection(true);
-    setConnectionStart(node);
-    const rect = canvasRef.current.getBoundingClientRect();
-    setConnectionEnd({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+    
+    // Get the position of the output handle
+    const handleElement = e.currentTarget;
+    const rect = handleElement.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+    
+    setConnectionStart({
+      nodeId: node.id,
+      x: startX,
+      y: startY
     });
-  };
+    
+    setConnectionEnd({
+      x: e.clientX,
+      y: e.clientY
+    });
+  }, []);
   
-  const deleteNode = (nodeId) => {
-    setNodes(nodes.filter(node => node.id !== nodeId));
-    setConnections(connections.filter(conn => 
-      conn.source !== nodeId && conn.target !== nodeId
-    ));
-  };
+  const endConnectionDraw = useCallback((e, node, handleType) => {
+    // This is handled by handleCanvasMouseUp via the potentialTarget state
+  }, []);
   
-  const handleNodeTextChange = (nodeId, newText) => {
-    setNodes(nodes.map(node => {
+  const deleteNode = useCallback((nodeId) => {
+    if (window.confirm('Are you sure you want to delete this node?')) {
+      setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeId));
+      
+      // Also delete any connections to/from this node
+      setConnections(prevConnections => prevConnections.filter(
+        conn => conn.source !== nodeId && conn.target !== nodeId
+      ));
+    }
+  }, []);
+  
+  const deleteConnection = useCallback((connectionId) => {
+    setConnections(prevConnections => 
+      prevConnections.filter(conn => conn.id !== connectionId)
+    );
+  }, []);
+  
+  const handleNodeTextChange = useCallback((nodeId, newText) => {
+    setNodes(prevNodes => prevNodes.map(node => {
       if (node.id === nodeId) {
         return {
           ...node,
@@ -144,22 +216,27 @@ export const WorkflowContextProvider = ({ children }) => {
       }
       return node;
     }));
-  };
+  }, []);
   
-  const clearCanvas = () => {
-    setNodes([]);
-    setConnections([]);
-  };
+  const clearCanvas = useCallback(() => {
+    if (window.confirm("Are you sure you want to clear the canvas? This will remove all nodes and connections.")) {
+      setNodes([]);
+      setConnections([]);
+    }
+  }, []);
 
   // Value object to provide through context
   const value = {
     // State
     nodes,
+    setNodes,
     connections,
+    setConnections,
     isDragging,
     isDrawingConnection,
     connectionStart,
     connectionEnd,
+    potentialTarget,
     canvasRef,
     
     // Functions
@@ -168,7 +245,9 @@ export const WorkflowContextProvider = ({ children }) => {
     handleCanvasMouseMove,
     handleCanvasMouseUp,
     startConnectionDraw,
+    endConnectionDraw,
     deleteNode,
+    deleteConnection,
     handleNodeTextChange,
     clearCanvas
   };

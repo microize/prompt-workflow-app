@@ -16,12 +16,12 @@ const HomePage = () => {
   return (
     <div className="p-8 bg-neutral-50 min-h-screen">
       {/* Top section with search bar */}
-      <div className="mt-12 animate-fade-in">
+      <div className="mt-8 mb-6 animate-fade-in">
         <SearchBar />
       </div>
       
       {/* Filter section with text label */}
-      <div className="mb-6 mt-4 animate-slide-up">
+      <div className="mb-6 animate-slide-up">
         <div className="flex items-center justify-center space-x-4">
           <h3 className="text-neutral-700 font-medium">Filter prompts by:</h3>
           <FilterButtons />
@@ -30,13 +30,13 @@ const HomePage = () => {
             
       {/* Search Results - shown when there's a search query */}
       {searchQuery && (
-        <div className="mb-6 mt-4 animate-fade-in">
+        <div className="mb-6 animate-fade-in">
           <SearchResults searchQuery={searchQuery} />
         </div>
       )}
       
       {/* Prompt Collections */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-280px)]">
         <PromptCollection 
           title="Recently Used" 
           icon="clock"

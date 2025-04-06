@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Move, X } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 
@@ -6,9 +6,13 @@ const WorkflowNode = ({ node }) => {
   const {
     handleNodeMouseDown,
     startConnectionDraw,
+    endConnectionDraw,
     deleteNode,
     handleNodeTextChange
   } = useWorkflowContext();
+
+  const inputHandleRef = useRef(null);
+  const outputHandleRef = useRef(null);
 
   // Determine styling based on node type
   const getNodeColorClass = () => {
@@ -39,12 +43,15 @@ const WorkflowNode = ({ node }) => {
 
   return (
     <div
-      className={`absolute rounded-lg shadow-sm border ${getNodeColorClass()}`}
+      className={`absolute rounded-lg shadow-md border ${getNodeColorClass()}`}
       style={{
         left: `${node.position.x}px`,
         top: `${node.position.y}px`,
-        width: '200px'
+        width: '200px',
+        zIndex: 10
       }}
+      data-node-id={node.id}
+      data-node-type={node.type}
     >
       {/* Node Header */}
       <div 
@@ -57,7 +64,7 @@ const WorkflowNode = ({ node }) => {
         </div>
         <button 
           onClick={() => deleteNode(node.id)}
-          className="text-gray-400 hover:text-red-500"
+          className="text-gray-400 hover:text-red-500 transition-colors"
         >
           <X size={14} />
         </button>
@@ -70,14 +77,35 @@ const WorkflowNode = ({ node }) => {
           value={node.content}
           onChange={(e) => handleNodeTextChange(node.id, e.target.value)}
           rows={3}
+          placeholder={`Enter ${node.type} details...`}
         />
       </div>
       
-      {/* Connection Handle */}
+      {/* Input Connection Handle */}
       <div 
-        className={`absolute w-4 h-4 rounded-full ${getHandleColorClass()} cursor-crosshair right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2`}
-        onMouseDown={(e) => startConnectionDraw(e, node)}
-      />
+        ref={inputHandleRef}
+        className="absolute w-6 h-6 rounded-full bg-gray-400 cursor-crosshair left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2
+                   flex items-center justify-center hover:scale-110 transition-transform"
+        style={{ zIndex: 20 }}
+        data-handle-type="input"
+        data-node-id={node.id}
+        onMouseUp={(e) => endConnectionDraw(e, node, 'input')}
+      >
+        <div className="w-3 h-3 bg-white rounded-full"></div>
+      </div>
+      
+      {/* Output Connection Handle */}
+      <div 
+        ref={outputHandleRef}
+        className={`absolute w-6 h-6 rounded-full ${getHandleColorClass()} cursor-crosshair right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2
+                   flex items-center justify-center hover:scale-110 transition-transform`}
+        style={{ zIndex: 20 }}
+        data-handle-type="output"
+        data-node-id={node.id}
+        onMouseDown={(e) => startConnectionDraw(e, node, 'output')}
+      >
+        <div className="w-3 h-3 bg-white rounded-full"></div>
+      </div>
     </div>
   );
 };

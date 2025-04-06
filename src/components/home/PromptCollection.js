@@ -18,12 +18,15 @@ const PromptCollection = ({ title, icon, prompts, type }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-card hover:shadow-card-hover transition-shadow">
+    <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm hover:shadow transition-shadow flex flex-col">
       <div className="flex items-center px-5 py-3 border-b border-neutral-100">
         {getIcon()}
         <h2 className="ml-2 text-[15px] font-medium text-neutral-700">{title}</h2>
       </div>
-      <div className="divide-y divide-neutral-100">
+      
+      {/* Scrollable container with custom scrollbar */}
+      <div className="divide-y divide-neutral-100 overflow-y-auto hide-scrollbar flex-1 smooth-scroll-container scroll-container" 
+           style={{ maxHeight: 'calc(100vh - 280px)' }}>
         {prompts.map(prompt => (
           <PromptCard 
             key={prompt.id} 

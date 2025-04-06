@@ -31,6 +31,54 @@
     --transition-default: 0.3s ease-in-out;
   }
   
+  /* Apply smooth scrolling to the entire app */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    overflow-y: scroll;
+  }
+  
+  /* Custom scrollbar - minimal Apple style */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #d1d1d6;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c7c7cc;
+  }
+  
+  /* Hide scrollbar when not in use, show on hover */
+  .hide-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+  
+  .hide-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: #d1d1d6;
+  }
+  
+  /* Smooth scrolling container */
+  .smooth-scroll-container {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch; /* For iOS */
+  }
+  
   /* Grid pattern for workflow canvas */
   .bg-grid-pattern {
     background-image: linear-gradient(to right, var(--color-neutral-200) 1px, transparent 1px), 
@@ -38,19 +86,71 @@
     background-size: 20px 20px;
   }
   
-  /* Connection paths styling */
-  .connection-path {
+  /* Subtle scale effect on cards during scroll */
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-card-effect {
+      transition: transform 0.2s ease-out;
+    }
+    
+    .scroll-container:active .scroll-card-effect {
+      transform: scale(0.99);
+    }
+  }
+  
+/* Connection handles styling */
+[data-handle-type="input"],
+[data-handle-type="output"] {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+[data-handle-type="input"]:hover,
+[data-handle-type="output"]:hover {
+  transform: scale(1.2) translate(-40%, -40%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+[data-handle-type="output"]:hover {
+  transform: scale(1.2) translate(40%, -40%);
+}
+
+/* Dynamic highlight for potential connection target */
+.potential-target {
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+/* Connection paths styling */
+.connection-path {
     stroke: var(--color-neutral-400);
     transition: stroke var(--transition-quick);
   }
   
   .connection-path:hover {
-    stroke: var(--color-primary);
+    stroke: var(--color-primary-500);
+    stroke-width: 3px;
+    cursor: pointer;
   }
   
   .connection-path-dashed {
-    stroke: var(--color-neutral-400);
+    stroke: var(--color-primary-400);
     stroke-dasharray: 5, 5;
+    animation: dash 1s linear infinite;
+  }
+  
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -10;
+    }
   }
   
   /* Clean animation for content transitions */
@@ -90,5 +190,4 @@
   
   .card-hover-effect:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(60, 64, 67, 0.1), 0 2px 4px -1px rgba(60, 64, 67, 0.05);
   }
