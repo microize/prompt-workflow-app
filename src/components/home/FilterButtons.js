@@ -20,9 +20,10 @@ const FilterButtons = () => {
           onClick={() => handleFilterClick(category.id)}
           className={`px-6 py-3 rounded-full text-sm font-medium transition-colors border ${
             activeFilters[category.id] 
-              ? 'bg-[#4285f4] text-white border-[#4285f4]' 
-              : 'bg-white text-[#3c4043] border-gray-200 hover:bg-[#f8f9fa]'
+              ? 'bg-primary-500 text-white border-primary-500' 
+              : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
           }`}
+          aria-pressed={activeFilters[category.id]}
         >
           {category.label}
         </button>

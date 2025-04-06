@@ -5,7 +5,7 @@ import HomePage from './pages/HomePage';
 import PlaygroundPage from './pages/PlaygroundPage';
 import WorkflowPage from './pages/WorkflowPage';
 import SettingsPage from './pages/SettingsPage';
-import './App.css';
+import './styles/global.css';
 
 const AppContent = () => {
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -36,7 +36,7 @@ const AppContent = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-neutral-50">
       <Navbar 
         navCollapsed={navCollapsed} 
         toggleNav={toggleNav}

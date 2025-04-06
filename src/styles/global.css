@@ -1,0 +1,94 @@
+/* global.css - Application-wide styles */
+
+/* Base styles */
+:root {
+    /* Color Variables for easier theming */
+    --color-primary: #4285f4;
+    --color-primary-light: #e8f0fe;
+    --color-primary-dark: #3367d6;
+    
+    --color-secondary: #fbbc04;
+    --color-secondary-light: #fef7e0;
+    
+    --color-neutral-50: #f8f9fa;
+    --color-neutral-100: #f1f3f4;
+    --color-neutral-200: #e8eaed;
+    --color-neutral-300: #dadce0;
+    --color-neutral-400: #bdc1c6;
+    --color-neutral-500: #9aa0a6;
+    --color-neutral-600: #5f6368;
+    --color-neutral-700: #3c4043;
+    
+    /* Spacing Variables */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    
+    /* Animation Variables */
+    --transition-quick: 0.15s ease-in-out;
+    --transition-default: 0.3s ease-in-out;
+  }
+  
+  /* Grid pattern for workflow canvas */
+  .bg-grid-pattern {
+    background-image: linear-gradient(to right, var(--color-neutral-200) 1px, transparent 1px), 
+                      linear-gradient(to bottom, var(--color-neutral-200) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  /* Connection paths styling */
+  .connection-path {
+    stroke: var(--color-neutral-400);
+    transition: stroke var(--transition-quick);
+  }
+  
+  .connection-path:hover {
+    stroke: var(--color-primary);
+  }
+  
+  .connection-path-dashed {
+    stroke: var(--color-neutral-400);
+    stroke-dasharray: 5, 5;
+  }
+  
+  /* Clean animation for content transitions */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  @keyframes slideUp {
+    from { 
+      transform: translateY(10px);
+      opacity: 0; 
+    }
+    to { 
+      transform: translateY(0);
+      opacity: 1; 
+    }
+  }
+  
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  /* Button focus styles */
+  button:focus, input:focus {
+    outline: none;
+  }
+  
+  /* Card hover transitions */
+  .card-hover-effect {
+    transition: transform var(--transition-default), box-shadow var(--transition-default);
+  }
+  
+  .card-hover-effect:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(60, 64, 67, 0.1), 0 2px 4px -1px rgba(60, 64, 67, 0.05);
+  }

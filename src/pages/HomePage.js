@@ -14,31 +14,29 @@ const HomePage = () => {
   } = useAppContext();
 
   return (
-    <div className="p-8 bg-[#f5f5f7] min-h-screen">
-      {/* Significant top margin for content to start lower */}
-      <div className="mt-12">
-        {/* Search Bar with improved vertical spacing */}
+    <div className="p-8 bg-neutral-50 min-h-screen">
+      {/* Top section with search bar */}
+      <div className="mt-12 animate-fade-in">
         <SearchBar />
       </div>
       
-      {/* Filter section with text label for clarity */}
-      <div className="mb-6 mt-4">
+      {/* Filter section with text label */}
+      <div className="mb-6 mt-4 animate-slide-up">
         <div className="flex items-center justify-center space-x-4">
-        <h3 className="text-[#3c4043] font-medium">Filter prompts by:</h3>
-        <FilterButtons />
+          <h3 className="text-neutral-700 font-medium">Filter prompts by:</h3>
+          <FilterButtons />
         </div>
       </div>
             
       {/* Search Results - shown when there's a search query */}
       {searchQuery && (
-        <div className="mb-6 mt-4">
+        <div className="mb-6 mt-4 animate-fade-in">
           <SearchResults searchQuery={searchQuery} />
         </div>
       )}
       
-
       {/* Prompt Collections */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
         <PromptCollection 
           title="Recently Used" 
           icon="clock"

@@ -7,23 +7,23 @@ const PromptCollection = ({ title, icon, prompts, type }) => {
   const getIcon = () => {
     switch (icon) {
       case 'clock':
-        return <Clock size={18} className="text-[#4285f4]" />;
+        return <Clock size={18} className="text-primary-500" />;
       case 'trending':
-        return <TrendingUp size={18} className="text-[#fbbc04]" />;
+        return <TrendingUp size={18} className="text-secondary-500" />;
       case 'star':
-        return <Star size={18} className="text-[#fbbc04]" />;
+        return <Star size={18} className="text-secondary-500" />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="flex items-center px-5 py-3 border-b border-gray-100">
+    <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-card hover:shadow-card-hover transition-shadow">
+      <div className="flex items-center px-5 py-3 border-b border-neutral-100">
         {getIcon()}
-        <h2 className="ml-2 text-[15px] font-medium text-[#3c4043]">{title}</h2>
+        <h2 className="ml-2 text-[15px] font-medium text-neutral-700">{title}</h2>
       </div>
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-neutral-100">
         {prompts.map(prompt => (
           <PromptCard 
             key={prompt.id} 
@@ -33,8 +33,8 @@ const PromptCollection = ({ title, icon, prompts, type }) => {
         ))}
         {prompts.length === 0 && type === 'favorite' && (
           <div className="p-8 text-center">
-            <Star size={28} className="mx-auto mb-2 text-gray-300" />
-            <p className="text-[#5f6368]">No favorites yet</p>
+            <Star size={28} className="mx-auto mb-2 text-neutral-300" />
+            <p className="text-neutral-600">No favorites yet</p>
           </div>
         )}
       </div>

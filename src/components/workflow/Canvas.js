@@ -17,18 +17,15 @@ const Canvas = () => {
   } = useWorkflowContext();
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-gray-50 p-4">
+    <div className="flex-1 relative overflow-hidden bg-neutral-50 p-4">
       <div 
         ref={canvasRef}
         className="w-full h-full relative" 
         onMouseMove={handleCanvasMouseMove}
         onMouseUp={handleCanvasMouseUp}
       >
-        {/* Grid Background */}
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
-          backgroundSize: '20px 20px'
-        }}></div>
+        {/* Grid Background - Now using classes instead of inline style */}
+        <div className="absolute inset-0 bg-grid-pattern"></div>
         
         {/* Connection Lines */}
         <svg className="absolute inset-0 pointer-events-none">
@@ -50,6 +47,7 @@ const Canvas = () => {
                 stroke="#94a3b8"
                 strokeWidth="2"
                 fill="none"
+                className="connection-path"
               />
             );
           })}
@@ -61,6 +59,7 @@ const Canvas = () => {
               strokeWidth="2"
               fill="none"
               strokeDasharray="5,5"
+              className="connection-path-dashed"
             />
           )}
         </svg>
@@ -76,13 +75,13 @@ const Canvas = () => {
         {/* Empty State */}
         {nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center p-6">
-              <GitBranch size={48} className="mx-auto text-gray-300 mb-4" />
-              <h3 className="text-xl font-medium text-gray-500 mb-2">Start Building Your Workflow</h3>
-              <p className="text-gray-400 mb-4">Drag components from the left panel onto this canvas</p>
+            <div className="text-center p-6 animate-fade-in">
+              <GitBranch size={48} className="mx-auto text-neutral-300 mb-4" />
+              <h3 className="text-xl font-medium text-neutral-500 mb-2">Start Building Your Workflow</h3>
+              <p className="text-neutral-400 mb-4">Drag components from the left panel onto this canvas</p>
               <button 
                 onClick={() => addNewNode('prompt')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1 mx-auto"
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm flex items-center gap-1 mx-auto transition-colors"
               >
                 <Plus size={16} />
                 Add First Node
