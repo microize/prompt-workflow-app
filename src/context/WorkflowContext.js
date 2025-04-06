@@ -123,18 +123,20 @@ export const WorkflowContextProvider = ({ children }) => {
       x: node.position.x,
       y: node.position.y
     });
+  }, []);
+  
+  // Add global event handlers for drag
+  useEffect(() => {
+    if (!isDragging || !currentNode) return;
     
-    // Define the handlers outside the add/remove cycle
     const handleMouseMove = (moveEvent) => {
       moveEvent.preventDefault();
-      
-      if (!isDragging || !currentNode) return;
       
       const dx = moveEvent.clientX - startPosition.x;
       const dy = moveEvent.clientY - startPosition.y;
       
       setNodes(prevNodes => prevNodes.map(n => {
-        if (n.id === node.id) {
+        if (n.id === currentNode.id) {
           // Calculate new position with boundaries
           let newX = Math.max(0, nodeDragStart.x + dx);
           let newY = Math.max(0, nodeDragStart.y + dy);
@@ -160,24 +162,120 @@ export const WorkflowContextProvider = ({ children }) => {
       upEvent.preventDefault();
       setIsDragging(false);
       setCurrentNode(null);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
     };
     
     // Add event listeners to handle drag on the whole document
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    
+    // Clean up event listeners when component unmounts or drag state changes
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [canvasRef, currentNode, isDragging, nodeDragStart, startPosition]);
   
   // Improved canvas mouse move handler
   const handleCanvasMouseMove = useCallback((e) => {
-    // Only handle connection drawing logic here
-    if (isDrawingConnection && connectionStart) {
+    // Only handle connection drawing logic here if we're not using the direct event listener
+    if (isDrawingConnection && connectionStart && !window.currentMoveHandler) {
       // Get canvas coordinates
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const canvasX = e.clientX - canvasRect.left + canvasRef.current.scrollLeft;
       const canvasY = e.clientY - canvasRect.top + canvasRef.current.scrollTop;
       
+      // Update connectionEnd for responsive feedback
+      setConnectionEnd({
+        x: canvasX,
+        y: canvasY
+      });
+    }
+    
+    // Check if we're hovering over a potential connection target
+    if (isDrawingConnection && connectionStart) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const handleElements = document.querySelectorAll('[data-handle-type="input"]');
+      let foundTarget = null;
+      
+      for (let i = 0; i < handleElements.length; i++) {
+        const handleEl = handleElements[i];
+        const rect = handleEl.getBoundingClientRect();
+        const nodeId = handleEl.getAttribute('data-node-id');
+        
+        // Skip if we're trying to connect to the same node
+        if (nodeId === connectionStart.nodeId) continue;
+        
+        const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
+        const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+        
+        // Calculate distance - using square of distance for performance
+        const distanceSquared = 
+          Math.pow(connectionEnd.x - centerX, 2) + 
+          Math.pow(connectionEnd.y - centerY, 2);
+        
+        // Using squared distance: 20px radius => 400px² threshold
+        if (distanceSquared < 400) {
+          foundTarget = {
+            nodeId,
+            x: centerX,
+            y: centerY
+          };
+          break; // Exit early once we found a valid target
+        }
+      }
+      
+      // Only update if the target changed
+      if (JSON.stringify(foundTarget) !== JSON.stringify(potentialTarget)) {
+        setPotentialTarget(foundTarget);
+      }
+    }
+  }, [isDrawingConnection, connectionStart, connectionEnd, potentialTarget, canvasRef]);
+  
+  // Enhanced startConnectionDraw with immediate visual feedback
+  const startConnectionDraw = useCallback((e, node, handleType) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Only allow starting connection from output handle
+    if (handleType !== 'output') return;
+    
+    // Set drawing state immediately
+    setIsDrawingConnection(true);
+    
+    // Get the position of the output handle for immediate feedback
+    const handleElement = e.currentTarget;
+    const rect = handleElement.getBoundingClientRect();
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    
+    // Calculate position relative to the canvas
+    const startX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
+    const startY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+    
+    // Initialize both connection points at the same position for smooth animation
+    const initialPosition = {
+      x: startX,
+      y: startY
+    };
+    
+    setConnectionStart({
+      nodeId: node.id,
+      x: startX,
+      y: startY
+    });
+    
+    // Initialize end position at the same point - will be updated on mouse move
+    setConnectionEnd(initialPosition);
+    
+    // Add a class to the document body to indicate connection drawing mode
+    document.body.classList.add('connection-drawing-mode');
+    
+    // Create a custom event listener for immediate movement tracking
+    const moveHandler = (moveEvent) => {
+      // Get cursor position relative to canvas
+      const canvasX = moveEvent.clientX - canvasRect.left + canvasRef.current.scrollLeft;
+      const canvasY = moveEvent.clientY - canvasRect.top + canvasRef.current.scrollTop;
+      
+      // Immediately update the connection end point
       setConnectionEnd({
         x: canvasX,
         y: canvasY
@@ -187,36 +285,73 @@ export const WorkflowContextProvider = ({ children }) => {
       const handleElements = document.querySelectorAll('[data-handle-type="input"]');
       let foundTarget = null;
       
-      handleElements.forEach(handleEl => {
+      for (let i = 0; i < handleElements.length; i++) {
+        const handleEl = handleElements[i];
         const rect = handleEl.getBoundingClientRect();
         const nodeId = handleEl.getAttribute('data-node-id');
         
-        // Make sure we're not trying to connect to the same node
-        if (nodeId !== connectionStart.nodeId) {
-          const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
-          const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
-          const distance = Math.sqrt(
-            Math.pow(canvasX - centerX, 2) + 
-            Math.pow(canvasY - centerY, 2)
-          );
-          
-          // If cursor is within 20px of the handle center
-          if (distance < 20) {
-            foundTarget = {
-              nodeId,
-              x: centerX,
-              y: centerY
-            };
-          }
+        // Skip if we're trying to connect to the same node
+        if (nodeId === node.id) continue;
+        
+        const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
+        const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
+        
+        // Calculate distance
+        const distanceSquared = 
+          Math.pow(canvasX - centerX, 2) + 
+          Math.pow(canvasY - centerY, 2);
+        
+        // Using squared distance: 20px radius => 400px² threshold
+        if (distanceSquared < 400) {
+          foundTarget = {
+            nodeId,
+            x: centerX,
+            y: centerY
+          };
+          break; 
         }
-      });
+      }
       
+      // Update potential target
       setPotentialTarget(foundTarget);
+    };
+    
+    // Attach immediate movement listener to document
+    document.addEventListener('mousemove', moveHandler);
+    
+    // Store the handler to remove it later
+    window.currentMoveHandler = moveHandler;
+  }, [canvasRef]);
+  
+  // Clean up connection drawing mode class when needed
+  useEffect(() => {
+    if (!isDrawingConnection) {
+      document.body.classList.remove('connection-drawing-mode');
+      
+      // Clean up any lingering event handlers
+      if (window.currentMoveHandler) {
+        document.removeEventListener('mousemove', window.currentMoveHandler);
+        window.currentMoveHandler = null;
+      }
     }
-  }, [isDrawingConnection, connectionStart]);
+    
+    return () => {
+      document.body.classList.remove('connection-drawing-mode');
+      if (window.currentMoveHandler) {
+        document.removeEventListener('mousemove', window.currentMoveHandler);
+        window.currentMoveHandler = null;
+      }
+    };
+  }, [isDrawingConnection]);
   
   // Improved canvas mouse up handler
   const handleCanvasMouseUp = useCallback((e) => {
+    // Clean up the immediate movement handler
+    if (window.currentMoveHandler) {
+      document.removeEventListener('mousemove', window.currentMoveHandler);
+      window.currentMoveHandler = null;
+    }
+    
     // Finish connection drawing if we have a target
     if (isDrawingConnection && potentialTarget) {
       // Create new connection
@@ -242,40 +377,9 @@ export const WorkflowContextProvider = ({ children }) => {
       setConnectionStart(null);
       setConnectionEnd({ x: 0, y: 0 });
       setPotentialTarget(null);
+      document.body.classList.remove('connection-drawing-mode');
     }
   }, [isDrawingConnection, potentialTarget, connectionStart, connections]);
-  
-  // Improved connection drawing start
-  const startConnectionDraw = useCallback((e, node, handleType) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Only allow starting connection from output handle
-    if (handleType !== 'output') return;
-    
-    // Set drawing state
-    setIsDrawingConnection(true);
-    
-    // Get the position of the output handle
-    const handleElement = e.currentTarget;
-    const rect = handleElement.getBoundingClientRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    
-    // Calculate position relative to the canvas
-    const startX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
-    const startY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
-    
-    setConnectionStart({
-      nodeId: node.id,
-      x: startX,
-      y: startY
-    });
-    
-    setConnectionEnd({
-      x: startX,
-      y: startY
-    });
-  }, [canvasRef]);
   
   // Connection drawing end point handler
   const endConnectionDraw = useCallback((e, node, handleType) => {
@@ -284,6 +388,12 @@ export const WorkflowContextProvider = ({ children }) => {
     
     e.stopPropagation();
     e.preventDefault();
+    
+    // Clean up the immediate movement handler
+    if (window.currentMoveHandler) {
+      document.removeEventListener('mousemove', window.currentMoveHandler);
+      window.currentMoveHandler = null;
+    }
     
     // Only create connection if we have a valid start and it's not the same node
     if (connectionStart.nodeId !== node.id) {
@@ -308,6 +418,7 @@ export const WorkflowContextProvider = ({ children }) => {
     setConnectionStart(null);
     setConnectionEnd({ x: 0, y: 0 });
     setPotentialTarget(null);
+    document.body.classList.remove('connection-drawing-mode');
   }, [isDrawingConnection, connectionStart, connections]);
   
   // Improved node deletion with confirmation

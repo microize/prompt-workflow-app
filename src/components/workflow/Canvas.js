@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useDrop } from 'react-dnd';
 import { GitBranch, Plus, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
@@ -30,9 +30,11 @@ const Canvas = () => {
   // Pan state for drag-to-pan functionality
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  // Track fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Set up React DnD drop target
-  const [{ isOver }, drop] = useDrop(() => ({
+  // Set up React DnD drop target with better handling
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'WORKFLOW_NODE',
     drop: (item, monitor) => {
       if (!canvasRef.current) return;
@@ -40,44 +42,47 @@ const Canvas = () => {
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const dropOffset = monitor.getClientOffset();
       
-      // Calculate position considering scroll and zoom
-      const x = (dropOffset.x - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current;
-      const y = (dropOffset.y - canvasRect.top + canvasRef.current.scrollTop) / zoomLevelRef.current;
+      // If there's no offset, exit early
+      if (!dropOffset) return { moved: false };
+      
+      // Calculate position considering scroll, zoom, and pan
+      const x = (dropOffset.x - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current - panOffsetRef.current.x;
+      const y = (dropOffset.y - canvasRect.top + canvasRef.current.scrollTop) / zoomLevelRef.current - panOffsetRef.current.y;
       
       // Add node at the drop position
-      addNewNode(item.nodeType, { x, y });
+      const nodeType = item.nodeType || item.type;
+      addNewNode(nodeType, { x, y });
       return { moved: true };
     },
     collect: (monitor) => ({
-      isOver: !!monitor.isOver()
+      isOver: !!monitor.isOver(),
+      canDrop: !!monitor.canDrop()
     })
-  }), [addNewNode]);
+  }), [addNewNode, zoomLevelRef, panOffsetRef]);
 
-  // Add event listeners for the canvas
+  // Add event listeners for the canvas with throttled mouse move
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     // Define a throttled mousemove handler to improve performance
     let lastMoveTime = 0;
+    const throttleMs = 16; // ~60fps
+    
     const throttledMouseMove = (e) => {
       const now = Date.now();
-      if (now - lastMoveTime >= 16) { // ~60fps
+      if (now - lastMoveTime >= throttleMs) {
         handleCanvasMouseMove(e);
         lastMoveTime = now;
       }
     };
 
-    const handleMouseUp = (e) => {
-      handleCanvasMouseUp(e);
-    };
-
     canvas.addEventListener('mousemove', throttledMouseMove);
-    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseup', handleCanvasMouseUp);
 
     return () => {
       canvas.removeEventListener('mousemove', throttledMouseMove);
-      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mouseup', handleCanvasMouseUp);
     };
   }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
 
@@ -99,77 +104,97 @@ const Canvas = () => {
   }, [lastCreatedNodeId, nodes]);
 
   // Function to handle zooming
-  const handleZoom = (zoomIn) => {
+  const handleZoom = useCallback((zoomIn) => {
     if (canvasContainerRef.current) {
+      // Calculate new zoom level with limits
       const newZoom = zoomIn 
         ? Math.min(zoomLevelRef.current + 0.1, 2) // Max zoom: 2x
         : Math.max(zoomLevelRef.current - 0.1, 0.5); // Min zoom: 0.5x
       
       zoomLevelRef.current = newZoom;
-      canvasContainerRef.current.style.transform = `scale(${newZoom}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
+      
+      // Apply transform with both zoom and pan
+      applyTransform(newZoom, panOffsetRef.current);
+    }
+  }, []);
+  
+  // Helper function to apply transform
+  const applyTransform = (zoom, pan) => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.style.transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`;
     }
   };
 
   // Function to reset zoom and pan
-  const resetZoomAndPan = () => {
+  const resetZoomAndPan = useCallback(() => {
     if (canvasContainerRef.current) {
       zoomLevelRef.current = 1;
       panOffsetRef.current = { x: 0, y: 0 };
-      canvasContainerRef.current.style.transform = 'scale(1) translate(0px, 0px)';
+      applyTransform(1, { x: 0, y: 0 });
     }
-  };
+  }, []);
   
   // Handle canvas panning - use middle mouse button or Ctrl+drag
-  const handleCanvasMouseDown = (e) => {
+  const handleCanvasMouseDown = useCallback((e) => {
     // Only initiate panning with middle mouse button (button 1) or Ctrl+left click
     if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       
-      // Add event listeners for panning
-      document.addEventListener('mousemove', handlePanMove);
-      document.addEventListener('mouseup', handlePanEnd);
-      
       // Change cursor during panning
       if (canvasRef.current) {
         canvasRef.current.style.cursor = 'grabbing';
       }
     }
-  };
+  }, []);
   
-  const handlePanMove = (e) => {
-    if (isPanning && canvasContainerRef.current) {
+  // Effect for handling pan move and end
+  useEffect(() => {
+    if (!isPanning) return;
+    
+    const handlePanMove = (e) => {
+      if (!isPanning || !canvasContainerRef.current) return;
+      
       const dx = (e.clientX - panStart.x) / zoomLevelRef.current;
       const dy = (e.clientY - panStart.y) / zoomLevelRef.current;
       
-      panOffsetRef.current = {
+      const newPanOffset = {
         x: panOffsetRef.current.x + dx,
         y: panOffsetRef.current.y + dy
       };
       
-      canvasContainerRef.current.style.transform = `scale(${zoomLevelRef.current}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
+      panOffsetRef.current = newPanOffset;
+      applyTransform(zoomLevelRef.current, newPanOffset);
       setPanStart({ x: e.clientX, y: e.clientY });
-    }
-  };
-  
-  const handlePanEnd = () => {
-    setIsPanning(false);
-    document.removeEventListener('mousemove', handlePanMove);
-    document.removeEventListener('mouseup', handlePanEnd);
+    };
     
-    // Reset cursor
-    if (canvasRef.current) {
-      canvasRef.current.style.cursor = '';
-    }
-  };
+    const handlePanEnd = () => {
+      setIsPanning(false);
+      
+      // Reset cursor
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = '';
+      }
+    };
+    
+    // Add event listeners for panning
+    document.addEventListener('mousemove', handlePanMove);
+    document.addEventListener('mouseup', handlePanEnd);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousemove', handlePanMove);
+      document.removeEventListener('mouseup', handlePanEnd);
+    };
+  }, [isPanning, panStart]);
   
   // Handle mousewheel for zooming - throttled for better performance
-  const handleWheel = (e) => {
+  const handleWheel = useCallback((e) => {
     if (e.ctrlKey) {
       e.preventDefault();
       
-      // Throttle wheel events
+      // Simple throttle
       if (!e.target.dataset.wheelThrottle) {
         e.target.dataset.wheelThrottle = true;
         
@@ -182,16 +207,29 @@ const Canvas = () => {
         }, 50);
       }
     }
-  };
+  }, [handleZoom]);
+
+  // Add useEffect for wheel event (using passive: false)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Use the non-passive listener to be able to preventDefault
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
 
   // Handle right-click to add node at position
-  const handleContextMenu = (e) => {
+  const handleContextMenu = useCallback((e) => {
     e.preventDefault();
     
-    // Get canvas coordinates, accounting for scroll and zoom
+    // Get canvas coordinates, accounting for scroll, zoom, and pan
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current;
-    const y = (e.clientY - rect.top + canvasRef.current.scrollTop) / zoomLevelRef.current;
+    const x = (e.clientX - rect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current - panOffsetRef.current.x;
+    const y = (e.clientY - rect.top + canvasRef.current.scrollTop) / zoomLevelRef.current - panOffsetRef.current.y;
     
     // Create context menu with improved styling and simplified options
     const menu = document.createElement('div');
@@ -233,28 +271,91 @@ const Canvas = () => {
     setTimeout(() => {
       document.addEventListener('click', handleOutsideClick);
     }, 100);
-  };
+  }, [addNewNode]);
 
-  // Add useEffect for wheel event (using passive: false)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // FULLSCREEN FUNCTIONALITY - ENHANCED AND FIXED
+  const handleFullscreen = useCallback(() => {
+    if (!canvasRef.current) return;
     
-    const handleWheelEvent = (e) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-        const zoomIn = e.deltaY < 0;
-        handleZoom(zoomIn);
+    const element = canvasRef.current.parentElement; // Use the parent div instead of just the canvas
+    
+    if (!document.fullscreenElement && 
+        !document.mozFullScreenElement &&
+        !document.webkitFullscreenElement &&
+        !document.msFullscreenElement) {
+      // If not in fullscreen mode, enter fullscreen
+      if (element.requestFullscreen) {
+        element.requestFullscreen().then(() => {
+          setIsFullscreen(true);
+        }).catch(err => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else if (element.mozRequestFullScreen) { // Firefox
+        element.mozRequestFullScreen();
+        setIsFullscreen(true);
+      } else if (element.webkitRequestFullscreen) { // Chrome, Safari, Opera
+        element.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+        setIsFullscreen(true);
+      } else if (element.msRequestFullscreen) { // IE/Edge
+        element.msRequestFullscreen();
+        setIsFullscreen(true);
+      }
+    } else {
+      // If already in fullscreen mode, exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => {
+          setIsFullscreen(false);
+        }).catch(err => {
+          console.error(`Error attempting to exit fullscreen: ${err.message}`);
+        });
+      } else if (document.mozCancelFullScreen) { // Firefox
+        document.mozCancelFullScreen();
+        setIsFullscreen(false);
+      } else if (document.webkitExitFullscreen) { // Chrome, Safari, Opera
+        document.webkitExitFullscreen();
+        setIsFullscreen(false);
+      } else if (document.msExitFullscreen) { // IE/Edge
+        document.msExitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  }, [canvasRef]);
+
+  // Listen for fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = 
+        !!document.fullscreenElement || 
+        !!document.mozFullScreenElement || 
+        !!document.webkitFullscreenElement || 
+        !!document.msFullscreenElement;
+      
+      setIsFullscreen(isCurrentlyFullscreen);
+      
+      // Add class to the canvas container for specific fullscreen styling if needed
+      if (canvasRef.current && canvasRef.current.parentElement) {
+        if (isCurrentlyFullscreen) {
+          canvasRef.current.parentElement.classList.add('canvas-fullscreen');
+        } else {
+          canvasRef.current.parentElement.classList.remove('canvas-fullscreen');
+        }
       }
     };
     
-    // Use the non-passive listener to be able to preventDefault
-    canvas.addEventListener('wheel', handleWheelEvent, { passive: false });
+    // Add event listeners for all browser variants
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     
     return () => {
-      canvas.removeEventListener('wheel', handleWheelEvent);
+      // Clean up event listeners
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
-  }, []);
+  }, [canvasRef]);
 
   return (
     <div className="flex-1 relative overflow-hidden bg-neutral-50">
@@ -275,9 +376,9 @@ const Canvas = () => {
           <ZoomOut size={18} />
         </button>
         <button 
-          onClick={resetZoomAndPan}
+          onClick={handleFullscreen}
           className="p-1 hover:bg-gray-100 rounded-md"
-          title="Reset View"
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
         >
           <Maximize size={18} />
         </button>
@@ -291,7 +392,9 @@ const Canvas = () => {
             drop(node);
           }
         }}
-        className={`w-full h-full overflow-auto relative ${isOver ? 'bg-blue-50 bg-opacity-30' : ''}`}
+        className={`w-full h-full overflow-auto relative ${
+          isOver && canDrop ? 'bg-blue-50 bg-opacity-30' : ''
+        } ${isFullscreen ? 'fullscreen-enabled' : ''}`}
         onContextMenu={handleContextMenu}
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
@@ -306,7 +409,7 @@ const Canvas = () => {
           <div className="absolute inset-0 bg-grid-pattern"></div>
           
           {/* Connection Lines */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+          <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
             {/* Existing Connections */}
             {connections.map(connection => {
               const sourceNode = nodes.find(n => n.id === connection.source);
@@ -374,27 +477,66 @@ const Canvas = () => {
               );
             })}
             
-            {/* Active Connection Being Drawn */}
-            {isDrawingConnection && connectionStart && connectionEnd && (
+            {/* Active Connection Being Drawn - Enhanced for immediate visual feedback */}
+            {isDrawingConnection && connectionStart && (
               <>
+                {/* Draw the connection line in real-time */}
                 <path
                   d={`M${connectionStart.x},${connectionStart.y} C${connectionStart.x + 50},${connectionStart.y} ${connectionEnd.x - 50},${connectionEnd.y} ${connectionEnd.x},${connectionEnd.y}`}
                   stroke="#3b82f6"
-                  strokeWidth="2"
+                  strokeWidth="3"
                   fill="none"
                   strokeDasharray="5,5"
-                  className="connection-path-dashed"
+                  className="active-connection"
                 />
                 
-                {/* Show a highlight for potential target */}
+                {/* Starting point indicator */}
+                <circle
+                  cx={connectionStart.x}
+                  cy={connectionStart.y}
+                  r="5"
+                  fill="#3b82f6"
+                />
+                
+                {/* End point follows mouse cursor */}
+                <circle
+                  cx={connectionEnd.x}
+                  cy={connectionEnd.y}
+                  r="5"
+                  fill="#3b82f6"
+                  className="cursor-connection-point"
+                />
+                
+                {/* Enhanced feedback when near a potential target */}
                 {potentialTarget && (
-                  <circle
-                    cx={potentialTarget.x}
-                    cy={potentialTarget.y}
-                    r="8"
-                    fill="#3b82f6"
-                    className="animate-pulse"
-                  />
+                  <>
+                    <circle
+                      cx={potentialTarget.x}
+                      cy={potentialTarget.y}
+                      r="8"
+                      fill="#3b82f6"
+                      className="animate-pulse"
+                    />
+                    <circle
+                      cx={potentialTarget.x}
+                      cy={potentialTarget.y}
+                      r="12"
+                      fill="transparent"
+                      stroke="#3b82f6"
+                      strokeWidth="2"
+                      opacity="0.5"
+                      className="animate-pulse"
+                    />
+                    
+                    {/* Draw a connecting line to the potential target */}
+                    <path
+                      d={`M${connectionEnd.x},${connectionEnd.y} L${potentialTarget.x},${potentialTarget.y}`}
+                      stroke="#3b82f6"
+                      strokeWidth="2"
+                      strokeDasharray="3,3"
+                      opacity="0.7"
+                    />
+                  </>
                 )}
               </>
             )}

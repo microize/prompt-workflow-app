@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Move, X, Copy, Edit, Check } from 'lucide-react';
+import { useDrag } from 'react-dnd';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 
 const WorkflowNode = ({ node }) => {
@@ -27,6 +28,15 @@ const WorkflowNode = ({ node }) => {
     setTitleValue(node.title);
     setContentValue(node.content);
   }, [node.title, node.content]);
+
+  // Set up React DnD for the node itself (for dropping from palette)
+  const [{ isDragging }, drag] = useDrag({
+    type: 'WORKFLOW_NODE',
+    item: { id: node.id, type: node.type },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging()
+    })
+  });
 
   // Determine styling based on node type
   const getNodeColorClass = () => {
@@ -124,10 +134,41 @@ const WorkflowNode = ({ node }) => {
     };
   }, []);
 
+  // Enhanced handle interactions with better feedback
+  const handleInputMouseEnter = () => {
+    if (inputHandleRef.current) {
+      inputHandleRef.current.classList.add('handle-highlight');
+    }
+  };
+  
+  const handleInputMouseLeave = () => {
+    if (inputHandleRef.current) {
+      inputHandleRef.current.classList.remove('handle-highlight');
+    }
+  };
+  
+  const handleOutputMouseEnter = () => {
+    if (outputHandleRef.current) {
+      outputHandleRef.current.classList.add('handle-highlight');
+    }
+  };
+  
+  const handleOutputMouseLeave = () => {
+    if (outputHandleRef.current) {
+      outputHandleRef.current.classList.remove('handle-highlight');
+    }
+  };
+
   return (
     <div
-      ref={nodeRef}
-      className={`absolute rounded-lg shadow-md border ${getNodeColorClass()}`}
+      ref={(element) => {
+        // Combine our own ref with React DnD's drag ref
+        nodeRef.current = element;
+        drag(element);
+      }}
+      className={`absolute rounded-lg shadow-md border ${getNodeColorClass()} ${
+        isDragging ? 'opacity-50' : ''
+      }`}
       style={{
         left: `${node.position.x}px`,
         top: `${node.position.y}px`,
@@ -204,27 +245,31 @@ const WorkflowNode = ({ node }) => {
         {node.type.charAt(0).toUpperCase() + node.type.slice(1)} Node
       </div>
       
-      {/* Input Connection Handle */}
+      {/* Input Connection Handle with improved interaction */}
       <div 
         ref={inputHandleRef}
         className={`absolute w-6 h-6 rounded-full bg-gray-400 cursor-crosshair left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2
-                   flex items-center justify-center hover:scale-110 transition-transform z-20`}
+                   flex items-center justify-center hover:scale-110 transition-transform z-20 connection-handle input-handle`}
         data-handle-type="input"
         data-node-id={node.id}
         onMouseUp={(e) => endConnectionDraw(e, node, 'input')}
+        onMouseEnter={handleInputMouseEnter}
+        onMouseLeave={handleInputMouseLeave}
         title="Connect to this input"
       >
         <div className="w-3 h-3 bg-white rounded-full"></div>
       </div>
       
-      {/* Output Connection Handle */}
+      {/* Output Connection Handle with improved interaction */}
       <div 
         ref={outputHandleRef}
         className={`absolute w-6 h-6 rounded-full ${getHandleColorClass()} cursor-crosshair right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2
-                   flex items-center justify-center hover:scale-110 transition-transform z-20`}
+                   flex items-center justify-center hover:scale-110 transition-transform z-20 connection-handle output-handle`}
         data-handle-type="output"
         data-node-id={node.id}
         onMouseDown={(e) => startConnectionDraw(e, node, 'output')}
+        onMouseEnter={handleOutputMouseEnter}
+        onMouseLeave={handleOutputMouseLeave}
         title="Drag to connect to another node"
       >
         <div className="w-3 h-3 bg-white rounded-full"></div>
