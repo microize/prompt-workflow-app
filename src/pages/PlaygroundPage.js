@@ -10,7 +10,6 @@ const PlaygroundPage = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Prompt Playground</h1>
       
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">

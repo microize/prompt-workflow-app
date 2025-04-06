@@ -39,33 +39,33 @@ const SearchBar = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto mb-8">
-      <div className="flex">
+    <div className="max-w-3xl mx-auto mb-10">
+      <div className="flex rounded-full overflow-hidden border border-gray-200 bg-white">
         <div className="relative flex-grow">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
             placeholder="Search prompts..."
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
-            className="w-full pl-12 pr-4 py-4 text-lg rounded-l-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-14 pr-4 py-3 text-base border-0 focus:outline-none focus:ring-0"
           />
         </div>
         <button
           onClick={handleSearch}
           disabled={isSearching || !inputValue.trim()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-r-lg flex items-center justify-center transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+          className="bg-[#4285f4] hover:bg-[#3367d6] text-white px-8 py-3 flex items-center justify-center transition-colors disabled:bg-[#a1c2fa] disabled:cursor-not-allowed"
         >
           {isSearching ? (
             <>
-              <Loader size={20} className="mr-2 animate-spin" />
-              Searching...
+              <Loader size={18} className="mr-2 animate-spin" />
+              <span className="font-medium">Searching...</span>
             </>
           ) : (
             <>
-              <Search size={20} className="mr-2" />
-              Search
+              <Search size={18} className="mr-2" />
+              <span className="font-medium">Search</span>
             </>
           )}
         </button>

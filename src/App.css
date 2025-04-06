@@ -1,38 +1,69 @@
+/* App.css - Clean Apple-inspired styling */
+
+/* Base styles */
 .App {
-  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* Custom scrollbar - minimal Apple style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+::-webkit-scrollbar-thumb {
+  background: #d1d1d6;
+  border-radius: 4px;
 }
 
-.App-link {
-  color: #61dafb;
+::-webkit-scrollbar-thumb:hover {
+  background: #c7c7cc;
 }
 
-@keyframes App-logo-spin {
+/* Clean animation for content transitions */
+@keyframes fadeIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
   }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Button focus styles */
+button:focus {
+  outline: none;
+}
+
+input:focus {
+  outline: none;
+}
+
+/* SF Pro Text font loading for complete Apple look */
+@font-face {
+  font-family: 'SF Pro Text';
+  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprotext-regular-webfont.woff') format('woff');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprotext-medium-webfont.woff') format('woff');
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sfprotext-semibold-webfont.woff') format('woff');
+  font-weight: 600;
 }

@@ -24,6 +24,13 @@ export const AppContextProvider = ({ children }) => {
     writing: false,
     marketing: false
   });
+  // Add state for active page to be passed in from App.js
+  const [setActivePage, updateSetActivePage] = useState(() => () => {});
+
+  // Method to set the page setter function from App.js
+  const setPageSetter = (setter) => {
+    updateSetActivePage(() => setter);
+  };
 
   // Derived state
   const popularPrompts = [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 3);
@@ -31,7 +38,8 @@ export const AppContextProvider = ({ children }) => {
   // Functions
   const openPlayground = (prompt) => {
     setSelectedPrompt(prompt);
-    // Note: We'll need to pass activePage setter from App.js to this context or handle another way
+    // Now we can change the active page by calling the setter passed from App.js
+    setActivePage('playground');
   };
   
   const handleFilterClick = (filter) => {
@@ -58,17 +66,19 @@ export const AppContextProvider = ({ children }) => {
   React.useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setIsLoading(false);
       return;
     }
 
     // Set loading state
     setIsLoading(true);
     
-    // Simulate AJAX request
+    // Simulate AJAX request with a delayed response
     const fetchResults = async () => {
       try {
         // In a real app, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 600));
+        // We add a delay to simulate network request
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         // Filter results based on query and active filters
         const filteredResults = promptDatabase.filter(prompt => {
@@ -82,13 +92,20 @@ export const AppContextProvider = ({ children }) => {
       } catch (error) {
         console.error('Error fetching search results:', error);
         // In a real app, you might want to set an error state here
+        setSearchResults([]);
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchResults();
-  }, [searchQuery, activeFilters]);
+    // Use a cleanup function to handle component unmounting
+    // or rapid changes to the search query
+    const timeoutId = setTimeout(fetchResults, 300);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery, activeFilters, promptDatabase]);
 
   // Value object to provide through context
   const value = {
@@ -115,6 +132,9 @@ export const AppContextProvider = ({ children }) => {
     // Workflow state
     selectedWorkflow,
     setSelectedWorkflow,
+    
+    // Page navigation
+    setPageSetter,
     
     // Functions
     openPlayground,

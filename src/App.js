@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { AppContextProvider } from './context/AppContext';
+import React, { useState, useEffect } from 'react';
+import { AppContextProvider, useAppContext } from './context/AppContext';
 import Navbar from './components/common/Navbar';
 import HomePage from './pages/HomePage';
 import PlaygroundPage from './pages/PlaygroundPage';
@@ -7,9 +7,15 @@ import WorkflowPage from './pages/WorkflowPage';
 import SettingsPage from './pages/SettingsPage';
 import './App.css';
 
-const App = () => {
+const AppContent = () => {
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [activePage, setActivePage] = useState('home');
+  const { setPageSetter } = useAppContext();
+
+  // Effect to register the setActivePage function with the context
+  useEffect(() => {
+    setPageSetter(setActivePage);
+  }, [setPageSetter]);
 
   const toggleNav = () => setNavCollapsed(!navCollapsed);
 
@@ -30,18 +36,24 @@ const App = () => {
   };
 
   return (
-    <AppContextProvider>
-      <div className="flex h-screen bg-gray-100">
-        <Navbar 
-          navCollapsed={navCollapsed} 
-          toggleNav={toggleNav}
-          activePage={activePage}
-          setActivePage={setActivePage} 
-        />
-        <div className="flex-1 overflow-auto">
-          {renderPage()}
-        </div>
+    <div className="flex h-screen bg-gray-100">
+      <Navbar 
+        navCollapsed={navCollapsed} 
+        toggleNav={toggleNav}
+        activePage={activePage}
+        setActivePage={setActivePage} 
+      />
+      <div className="flex-1 overflow-auto">
+        {renderPage()}
       </div>
+    </div>
+  );
+};
+
+const App = () => {
+  return (
+    <AppContextProvider>
+      <AppContent />
     </AppContextProvider>
   );
 };
