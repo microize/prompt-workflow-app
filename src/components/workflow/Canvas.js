@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { GitBranch, Plus } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { GitBranch, Plus, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import WorkflowNode from './WorkflowNode';
 
@@ -15,8 +15,16 @@ const Canvas = () => {
     handleCanvasMouseMove,
     handleCanvasMouseUp,
     addNewNode,
-    deleteConnection
+    deleteConnection,
+    lastCreatedNodeId
   } = useWorkflowContext();
+
+  // Ref for tracking the current zoom level
+  const zoomLevelRef = useRef(1);
+  // Ref for tracking pan offset
+  const panOffsetRef = useRef({ x: 0, y: 0 });
+  // Ref for the canvas container to apply transforms
+  const canvasContainerRef = useRef(null);
 
   // Add event listeners for the canvas
   useEffect(() => {
@@ -40,130 +48,144 @@ const Canvas = () => {
     };
   }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
 
-  return (
-    <div className="flex-1 relative overflow-hidden bg-neutral-50">
-      <div 
-        ref={canvasRef}
-        className="w-full h-full relative" 
-      >
-        {/* Grid Background */}
-        <div className="absolute inset-0 bg-grid-pattern"></div>
-        
-        {/* Connection Lines */}
-        <svg className="absolute inset-0 pointer-events-none z-0">
-          {/* Existing Connections */}
-          {connections.map(connection => {
-            const sourceNode = nodes.find(n => n.id === connection.source);
-            const targetNode = nodes.find(n => n.id === connection.target);
-            
-            if (!sourceNode || !targetNode) return null;
-            
-            // Calculate the position of the connection points
-            const sourceX = sourceNode.position.x + 200; // Right side of source node
-            const sourceY = sourceNode.position.y + 60;  // Middle of node
-            const targetX = targetNode.position.x;       // Left side of target node
-            const targetY = targetNode.position.y + 60;  // Middle of node
-            
-            // Calculate the Bezier curve control points
-            const dx = Math.abs(targetX - sourceX);
-            const controlX1 = sourceX + dx * 0.25;
-            const controlY1 = sourceY;
-            const controlX2 = targetX - dx * 0.25;
-            const controlY2 = targetY;
-            
-            const pathD = `M${sourceX},${sourceY} C${controlX1},${controlY1} ${controlX2},${controlY2} ${targetX},${targetY}`;
-            
-            return (
-              <g key={connection.id}>
-                {/* Main visible connection line */}
-                <path
-                  d={pathD}
-                  stroke="#94a3b8"
-                  strokeWidth="2"
-                  fill="none"
-                  className="connection-path pointer-events-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Delete this connection?')) {
-                      deleteConnection(connection.id);
-                    }
-                  }}
-                />
-                
-                {/* Invisible wider path for easier clicking/hovering */}
-                <path
-                  d={pathD}
-                  stroke="transparent"
-                  strokeWidth="12"
-                  fill="none"
-                  className="pointer-events-auto cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Delete this connection?')) {
-                      deleteConnection(connection.id);
-                    }
-                  }}
-                />
-              </g>
-            );
-          })}
-          
-          {/* Active Connection Being Drawn */}
-          {isDrawingConnection && connectionStart && connectionEnd && (
-            <>
-              <path
-                d={`M${connectionStart.x},${connectionStart.y} C${connectionStart.x + 50},${connectionStart.y} ${connectionEnd.x - 50},${connectionEnd.y} ${connectionEnd.x},${connectionEnd.y}`}
-                stroke="#3b82f6"
-                strokeWidth="2"
-                fill="none"
-                strokeDasharray="5,5"
-                className="connection-path-dashed"
-              />
-              
-              {/* Show a highlight for potential target */}
-              {potentialTarget && (
-                <circle
-                  cx={potentialTarget.x}
-                  cy={potentialTarget.y}
-                  r="8"
-                  fill="#3b82f6"
-                  className="animate-pulse"
-                />
-              )}
-            </>
-          )}
-        </svg>
-        
-        {/* Nodes */}
-        {nodes.map(node => (
-          <WorkflowNode 
-            key={node.id} 
-            node={node} 
-          />
-        ))}
-        
-        {/* Empty State */}
-        {nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center p-6">
-              <div className="flex flex-col items-center">
-                <GitBranch size={48} className="text-neutral-300 mb-4" />
-                <h3 className="text-xl font-medium text-neutral-500 mb-2">Start Building Your Workflow</h3>
-                <p className="text-neutral-400 mb-4">Drag components from the left panel onto this canvas</p>
-                <button 
-                  onClick={() => addNewNode('prompt')}
-                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
-                >
-                  <Plus size={16} />
-                  Add First Node
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+  // Scroll to newly created node
+  useEffect(() => {
+    if (lastCreatedNodeId && nodes.length > 0) {
+      const newNode = nodes.find(n => n.id === lastCreatedNodeId);
+      if (newNode && canvasRef.current) {
+        canvasRef.current.scrollTo({
+          left: newNode.position.x - 100,
+          top: newNode.position.y - 100,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [lastCreatedNodeId, nodes]);
 
-export default Canvas;
+  // Function to handle zooming
+  const handleZoom = (zoomIn) => {
+    if (canvasContainerRef.current) {
+      const newZoom = zoomIn 
+        ? Math.min(zoomLevelRef.current + 0.1, 2) // Max zoom: 2x
+        : Math.max(zoomLevelRef.current - 0.1, 0.5); // Min zoom: 0.5x
+      
+      zoomLevelRef.current = newZoom;
+      canvasContainerRef.current.style.transform = `scale(${newZoom}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
+    }
+  };
+
+  // Function to reset zoom and pan
+  const resetZoomAndPan = () => {
+    if (canvasContainerRef.current) {
+      zoomLevelRef.current = 1;
+      panOffsetRef.current = { x: 0, y: 0 };
+      canvasContainerRef.current.style.transform = 'scale(1) translate(0px, 0px)';
+    }
+  };
+
+  // Pan state for drag-to-pan functionality
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  
+  // Handle canvas panning
+  const handleCanvasMouseDown = (e) => {
+    // Only initiate panning with middle mouse button (button 1) or space+left click
+    if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      
+      // Add event listeners for panning
+      document.addEventListener('mousemove', handlePanMove);
+      document.addEventListener('mouseup', handlePanEnd);
+    }
+  };
+  
+  const handlePanMove = (e) => {
+    if (isPanning && canvasContainerRef.current) {
+      const dx = (e.clientX - panStart.x) / zoomLevelRef.current;
+      const dy = (e.clientY - panStart.y) / zoomLevelRef.current;
+      
+      panOffsetRef.current = {
+        x: panOffsetRef.current.x + dx,
+        y: panOffsetRef.current.y + dy
+      };
+      
+      canvasContainerRef.current.style.transform = `scale(${zoomLevelRef.current}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+  
+  const handlePanEnd = () => {
+    setIsPanning(false);
+    document.removeEventListener('mousemove', handlePanMove);
+    document.removeEventListener('mouseup', handlePanEnd);
+  };
+  
+  // Handle mousewheel for zooming
+  const handleWheel = (e) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const zoomIn = e.deltaY < 0;
+      handleZoom(zoomIn);
+    }
+  };
+  
+  // Handle right-click to add node at position
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    
+    // Get canvas coordinates
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Show a simple context menu
+    const menu = document.createElement('div');
+    menu.className = 'absolute bg-white shadow-lg rounded-md z-50';
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    
+    const addPromptButton = document.createElement('button');
+    addPromptButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
+    addPromptButton.innerText = 'Add Prompt Node';
+    addPromptButton.onclick = () => {
+      addNewNode('prompt', { x, y });
+      document.body.removeChild(menu);
+    };
+    
+    const addActionButton = document.createElement('button');
+    addActionButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
+    addActionButton.innerText = 'Add Action Node';
+    addActionButton.onclick = () => {
+      addNewNode('action', { x, y });
+      document.body.removeChild(menu);
+    };
+    
+    const addConditionButton = document.createElement('button');
+    addConditionButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
+    addConditionButton.innerText = 'Add Condition Node';
+    addConditionButton.onclick = () => {
+      addNewNode('condition', { x, y });
+      document.body.removeChild(menu);
+    };
+    
+    menu.appendChild(addPromptButton);
+    menu.appendChild(addActionButton);
+    menu.appendChild(addConditionButton);
+    document.body.appendChild(menu);
+    
+    // Handle click outside to close menu
+    const handleOutsideClick = () => {
+      if (document.body.contains(menu)) {
+        document.body.removeChild(menu);
+      }
+      document.removeEventListener('click', handleOutsideClick);
+    };
+    
+    // Delay adding the listener to prevent immediate closure
+    setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+    }, 100);
+  }
+};

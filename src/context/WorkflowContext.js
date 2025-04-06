@@ -18,6 +18,7 @@ export const WorkflowContextProvider = ({ children }) => {
   const [connectionStart, setConnectionStart] = useState(null);
   const [connectionEnd, setConnectionEnd] = useState({ x: 0, y: 0 });
   const [potentialTarget, setPotentialTarget] = useState(null);
+  const [lastCreatedNodeId, setLastCreatedNodeId] = useState(null);
   const canvasRef = useRef(null);
 
   // Functions for managing nodes
@@ -37,8 +38,9 @@ export const WorkflowContextProvider = ({ children }) => {
       };
     }
     
+    const newNodeId = Date.now().toString();
     const newNode = {
-      id: Date.now().toString(),
+      id: newNodeId,
       type: type,
       title: type === 'prompt' ? 'New Prompt' : 
              type === 'action' ? 'New Action' : 'New Condition',
@@ -48,11 +50,20 @@ export const WorkflowContextProvider = ({ children }) => {
     };
     
     setNodes(prevNodes => [...prevNodes, newNode]);
+    setLastCreatedNodeId(newNodeId);
     return newNode;
   }, [canvasRef]);
   
+  // Improved node drag handling
   const handleNodeMouseDown = useCallback((e, node) => {
     e.stopPropagation();
+    
+    // Only start dragging if we're in the header area
+    const target = e.target;
+    if (!target.closest('.node-header')) {
+      return;
+    }
+    
     setIsDragging(true);
     setCurrentNode(node);
     setStartPosition({
@@ -63,30 +74,52 @@ export const WorkflowContextProvider = ({ children }) => {
       x: node.position.x,
       y: node.position.y
     });
-  }, []);
-  
-  const handleCanvasMouseMove = useCallback((e) => {
-    // Node dragging
-    if (isDragging && currentNode) {
-      const dx = e.clientX - startPosition.x;
-      const dy = e.clientY - startPosition.y;
+    
+    // Add event listeners to handle drag on the whole document
+    const handleMouseMove = (moveEvent) => {
+      const dx = moveEvent.clientX - startPosition.x;
+      const dy = moveEvent.clientY - startPosition.y;
       
-      setNodes(prevNodes => prevNodes.map(node => {
-        if (node.id === currentNode.id) {
+      setNodes(prevNodes => prevNodes.map(n => {
+        if (n.id === node.id) {
+          // Calculate new position with boundaries
+          let newX = Math.max(0, nodeDragStart.x + dx);
+          let newY = Math.max(0, nodeDragStart.y + dy);
+          
+          if (canvasRef.current) {
+            const canvasRect = canvasRef.current.getBoundingClientRect();
+            newX = Math.min(newX, canvasRect.width - 200); // Assuming node width is 200px
+          }
+          
           return {
-            ...node,
+            ...n,
             position: {
-              x: nodeDragStart.x + dx,
-              y: nodeDragStart.y + dy
+              x: newX,
+              y: newY
             }
           };
         }
-        return node;
+        return n;
       }));
-    }
+    };
     
-    // Connection drawing
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setCurrentNode(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
+  
+  // Improved canvas mouse move handler
+  const handleCanvasMouseMove = useCallback((e) => {
+    // Connection drawing logic only - node dragging is handled separately now
     if (isDrawingConnection && connectionStart) {
+      // Get canvas coordinates
+      const canvasRect = canvasRef.current.getBoundingClientRect();
       setConnectionEnd({
         x: e.clientX,
         y: e.clientY
@@ -122,15 +155,10 @@ export const WorkflowContextProvider = ({ children }) => {
       
       setPotentialTarget(foundTarget);
     }
-  }, [isDragging, currentNode, startPosition, nodeDragStart, isDrawingConnection, connectionStart]);
+  }, [isDrawingConnection, connectionStart]);
   
+  // Improved canvas mouse up handler
   const handleCanvasMouseUp = useCallback((e) => {
-    // Release dragged node
-    if (isDragging) {
-      setIsDragging(false);
-      setCurrentNode(null);
-    }
-    
     // Finish connection drawing if we have a target
     if (isDrawingConnection && potentialTarget) {
       // Create new connection
@@ -140,7 +168,7 @@ export const WorkflowContextProvider = ({ children }) => {
         target: potentialTarget.nodeId
       };
       
-      // Check if connection already exists
+      // Check if connection already exists to prevent duplicates
       const isDuplicate = connections.some(conn => 
         conn.source === newConnection.source && conn.target === newConnection.target
       );
@@ -159,8 +187,10 @@ export const WorkflowContextProvider = ({ children }) => {
     }
   }, [isDrawingConnection, potentialTarget, connectionStart, connections]);
   
+  // Improved connection drawing start
   const startConnectionDraw = useCallback((e, node, handleType) => {
     e.stopPropagation();
+    e.preventDefault();
     
     // Only allow starting connection from output handle
     if (handleType !== 'output') return;
@@ -183,29 +213,152 @@ export const WorkflowContextProvider = ({ children }) => {
       x: e.clientX,
       y: e.clientY
     });
-  }, []);
+    
+    // Create temporary event listeners for drawing
+    const handleMouseMove = (moveEvent) => {
+      setConnectionEnd({
+        x: moveEvent.clientX,
+        y: moveEvent.clientY
+      });
+      
+      // Check for potential targets
+      const handleElements = document.querySelectorAll('[data-handle-type="input"]');
+      let foundTarget = null;
+      
+      handleElements.forEach(handleEl => {
+        const rect = handleEl.getBoundingClientRect();
+        const targetNodeId = handleEl.getAttribute('data-node-id');
+        
+        // Don't connect to the same node
+        if (targetNodeId !== node.id) {
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.sqrt(
+            Math.pow(moveEvent.clientX - centerX, 2) + 
+            Math.pow(moveEvent.clientY - centerY, 2)
+          );
+          
+          if (distance < 20) {
+            foundTarget = {
+              nodeId: targetNodeId,
+              x: centerX,
+              y: centerY
+            };
+          }
+        }
+      });
+      
+      setPotentialTarget(foundTarget);
+    };
+    
+    const handleMouseUp = (upEvent) => {
+      // Create connection if we have a target
+      if (potentialTarget) {
+        const newConnection = {
+          id: `conn-${node.id}-${potentialTarget.nodeId}`,
+          source: node.id,
+          target: potentialTarget.nodeId
+        };
+        
+        // Check for duplicates
+        const isDuplicate = connections.some(conn => 
+          conn.source === newConnection.source && conn.target === newConnection.target
+        );
+        
+        if (!isDuplicate) {
+          setConnections(prev => [...prev, newConnection]);
+        }
+      }
+      
+      // Reset states
+      setIsDrawingConnection(false);
+      setConnectionStart(null);
+      setConnectionEnd({ x: 0, y: 0 });
+      setPotentialTarget(null);
+      
+      // Remove temporary listeners
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [connections, potentialTarget]);
   
+  // Connection drawing end point handler
   const endConnectionDraw = useCallback((e, node, handleType) => {
-    // This is handled by handleCanvasMouseUp via the potentialTarget state
-  }, []);
+    // Only allow ending on input handles
+    if (handleType !== 'input' || !isDrawingConnection) return;
+    
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Only create connection if we have a valid start
+    if (connectionStart && connectionStart.nodeId !== node.id) {
+      const newConnection = {
+        id: `conn-${connectionStart.nodeId}-${node.id}`,
+        source: connectionStart.nodeId,
+        target: node.id
+      };
+      
+      // Check for duplicates
+      const isDuplicate = connections.some(conn => 
+        conn.source === newConnection.source && conn.target === newConnection.target
+      );
+      
+      if (!isDuplicate) {
+        setConnections(prev => [...prev, newConnection]);
+      }
+    }
+    
+    // Reset connection drawing state
+    setIsDrawingConnection(false);
+    setConnectionStart(null);
+    setConnectionEnd({ x: 0, y: 0 });
+    setPotentialTarget(null);
+  }, [isDrawingConnection, connectionStart, connections]);
   
+  // Improved node deletion with confirmation
   const deleteNode = useCallback((nodeId) => {
     if (window.confirm('Are you sure you want to delete this node?')) {
-      setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeId));
-      
-      // Also delete any connections to/from this node
+      // First, remove any connections involving this node
       setConnections(prevConnections => prevConnections.filter(
         conn => conn.source !== nodeId && conn.target !== nodeId
       ));
+      
+      // Then remove the node
+      setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeId));
     }
   }, []);
   
+  // Improved connection deletion with confirmation
   const deleteConnection = useCallback((connectionId) => {
-    setConnections(prevConnections => 
-      prevConnections.filter(conn => conn.id !== connectionId)
-    );
+    if (window.confirm('Are you sure you want to delete this connection?')) {
+      setConnections(prevConnections => 
+        prevConnections.filter(conn => conn.id !== connectionId)
+      );
+    }
   }, []);
   
+  // Duplicate a node
+  const duplicateNode = useCallback((nodeId) => {
+    const nodeToDuplicate = nodes.find(node => node.id === nodeId);
+    if (!nodeToDuplicate) return;
+    
+    const newNode = {
+      ...nodeToDuplicate,
+      id: Date.now().toString(),
+      position: {
+        x: nodeToDuplicate.position.x + 30,
+        y: nodeToDuplicate.position.y + 30
+      }
+    };
+    
+    setNodes(prevNodes => [...prevNodes, newNode]);
+    return newNode.id;
+  }, [nodes]);
+  
+  // Update node text content
   const handleNodeTextChange = useCallback((nodeId, newText) => {
     setNodes(prevNodes => prevNodes.map(node => {
       if (node.id === nodeId) {
@@ -218,10 +371,70 @@ export const WorkflowContextProvider = ({ children }) => {
     }));
   }, []);
   
+  // Update node title
+  const handleNodeTitleChange = useCallback((nodeId, newTitle) => {
+    setNodes(prevNodes => prevNodes.map(node => {
+      if (node.id === nodeId) {
+        return {
+          ...node,
+          title: newTitle
+        };
+      }
+      return node;
+    }));
+  }, []);
+  
+  // Clear canvas with confirmation
   const clearCanvas = useCallback(() => {
+    if (nodes.length === 0) return;
+    
     if (window.confirm("Are you sure you want to clear the canvas? This will remove all nodes and connections.")) {
       setNodes([]);
       setConnections([]);
+    }
+  }, [nodes.length]);
+  
+  // Export workflow as JSON
+  const exportWorkflow = useCallback(() => {
+    if (nodes.length === 0) {
+      alert('No workflow to export');
+      return;
+    }
+
+    const workflow = {
+      nodes: nodes,
+      connections: connections,
+      exportedAt: new Date().toISOString()
+    };
+
+    // Create a download link for the JSON file
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(workflow, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `workflow-${Date.now()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }, [nodes, connections]);
+  
+  // Import workflow from JSON
+  const importWorkflow = useCallback((jsonData) => {
+    try {
+      const parsedData = JSON.parse(jsonData);
+      
+      if (!parsedData.nodes || !Array.isArray(parsedData.nodes) || 
+          !parsedData.connections || !Array.isArray(parsedData.connections)) {
+        throw new Error("Invalid workflow data format");
+      }
+      
+      setNodes(parsedData.nodes);
+      setConnections(parsedData.connections);
+      
+      return true;
+    } catch (error) {
+      console.error("Failed to import workflow:", error);
+      alert("Failed to import workflow: " + error.message);
+      return false;
     }
   }, []);
 
@@ -238,6 +451,7 @@ export const WorkflowContextProvider = ({ children }) => {
     connectionEnd,
     potentialTarget,
     canvasRef,
+    lastCreatedNodeId,
     
     // Functions
     addNewNode,
@@ -248,8 +462,12 @@ export const WorkflowContextProvider = ({ children }) => {
     endConnectionDraw,
     deleteNode,
     deleteConnection,
+    duplicateNode,
     handleNodeTextChange,
-    clearCanvas
+    handleNodeTitleChange,
+    clearCanvas,
+    exportWorkflow,
+    importWorkflow
   };
 
   return (
