@@ -15,25 +15,29 @@ const HomePage = () => {
 
   return (
     <div className="p-8 bg-[#f5f5f7] min-h-screen">
-      <h1 className="text-2xl font-semibold mb-1 text-[#1d1d1f]">Prompt Search</h1>
-      <p className="text-[#86868b] mb-8">Find and use AI prompts for your projects</p>
+      {/* Significant top margin for content to start lower */}
+      <div className="mt-12">
+        {/* Search Bar with improved vertical spacing */}
+        <SearchBar />
+      </div>
       
-      {/* Search Bar */}
-      <SearchBar />
-
-      {/* Filter Buttons */}
-      <FilterButtons />
-
       {/* Search Results - shown when there's a search query */}
       {searchQuery && (
-        <div className="mb-10">
+        <div className="mb-10 mt-8">
           <SearchResults searchQuery={searchQuery} />
         </div>
       )}
       
+      {/* Filter section with text label for clarity */}
+      <div className="mb-8 mt-10">
+        <div className="flex items-center justify-center mb-4">
+          <h3 className="text-[#3c4043] font-medium mr-2">Filter prompts by category:</h3>
+        </div>
+        <FilterButtons />
+      </div>
       
       {/* Prompt Collections */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
         <PromptCollection 
           title="Recently Used" 
           icon="clock"

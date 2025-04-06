@@ -13,15 +13,15 @@ const FilterButtons = () => {
   ];
 
   return (
-    <div className="flex flex-wrap justify-center gap-3 mb-10">
+    <div className="flex flex-wrap justify-center gap-4">
       {filterCategories.map(category => (
         <button
           key={category.id}
           onClick={() => handleFilterClick(category.id)}
-          className={`px-5 py-2 rounded-full transition-colors ${
+          className={`px-6 py-3 rounded-full text-sm font-medium transition-colors border ${
             activeFilters[category.id] 
-              ? 'bg-[#4285f4] text-white' 
-              : 'bg-[#f1f3f4] text-[#3c4043] hover:bg-[#e8eaed]'
+              ? 'bg-[#4285f4] text-white border-[#4285f4]' 
+              : 'bg-white text-[#3c4043] border-gray-200 hover:bg-[#f8f9fa]'
           }`}
         >
           {category.label}

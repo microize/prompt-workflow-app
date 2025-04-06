@@ -38,8 +38,11 @@ const SearchBar = () => {
     }
   };
 
+  // Button is disabled when input is empty or while searching
+  const isButtonDisabled = !inputValue.trim() || isSearching || isLoading;
+
   return (
-    <div className="max-w-3xl mx-auto mb-10">
+    <div className="max-w-3xl mx-auto">
       <div className="flex rounded-full overflow-hidden border border-gray-200 bg-white">
         <div className="relative flex-grow">
           <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -49,13 +52,17 @@ const SearchBar = () => {
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
-            className="w-full pl-14 pr-4 py-3 text-base border-0 focus:outline-none focus:ring-0"
+            className="w-full pl-14 pr-4 py-4 text-base border-0 focus:outline-none focus:ring-0"
           />
         </div>
         <button
           onClick={handleSearch}
-          disabled={isSearching || !inputValue.trim()}
-          className="bg-[#4285f4] hover:bg-[#3367d6] text-white px-8 py-3 flex items-center justify-center transition-colors disabled:bg-[#a1c2fa] disabled:cursor-not-allowed"
+          disabled={isButtonDisabled}
+          className={`px-8 py-4 flex items-center justify-center transition-colors ${
+            isButtonDisabled 
+              ? 'bg-[#dadce0] text-[#9aa0a6] cursor-not-allowed' 
+              : 'bg-[#4285f4] hover:bg-[#3367d6] text-white'
+          }`}
         >
           {isSearching ? (
             <>
