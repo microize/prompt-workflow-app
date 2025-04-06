@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback, useMemo } from 'react';
 import { promptDatabase, recentlyUsedPrompts, initialFavorites } from '../data/samplePrompts';
 import { sampleWorkflows } from '../data/sampleWorkflows';
 
@@ -6,7 +6,13 @@ import { sampleWorkflows } from '../data/sampleWorkflows';
 const AppContext = createContext();
 
 // Custom hook to use the context
-export const useAppContext = () => useContext(AppContext);
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useAppContext must be used within an AppContextProvider');
+  }
+  return context;
+};
 
 export const AppContextProvider = ({ children }) => {
   // State variables
@@ -28,38 +34,45 @@ export const AppContextProvider = ({ children }) => {
   const [setActivePage, updateSetActivePage] = useState(() => () => {});
 
   // Method to set the page setter function from App.js
-  const setPageSetter = (setter) => {
+  const setPageSetter = useCallback((setter) => {
     updateSetActivePage(() => setter);
-  };
+  }, []);
 
-  // Derived state
-  const popularPrompts = [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10);
+  // Derived state - memoize to prevent unnecessary recalculations
+  const popularPrompts = useMemo(() => {
+    return [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10);
+  }, []);
 
   // Functions
-  const openPlayground = (prompt) => {
+  const openPlayground = useCallback((prompt) => {
     setSelectedPrompt(prompt);
+    if (prompt) {
+      setPlaygroundInput(prompt.text);
+    }
     // Now we can change the active page by calling the setter passed from App.js
     setActivePage('playground');
-  };
+  }, [setActivePage]);
   
-  const handleFilterClick = (filter) => {
-    setActiveFilters({
-      ...activeFilters,
-      [filter]: !activeFilters[filter]
-    });
-  };
+  const handleFilterClick = useCallback((filter) => {
+    setActiveFilters(prevFilters => ({
+      ...prevFilters,
+      [filter]: !prevFilters[filter]
+    }));
+  }, []);
 
-  const toggleFavorite = (prompt) => {
-    const isFavorite = favorites.some(f => f.id === prompt.id);
-    if (isFavorite) {
-      setFavorites(favorites.filter(f => f.id !== prompt.id));
-    } else {
-      setFavorites([...favorites, {
-        ...prompt,
-        addedAt: "Today"
-      }]);
-    }
-  };
+  const toggleFavorite = useCallback((prompt) => {
+    setFavorites(prevFavorites => {
+      const isFavorite = prevFavorites.some(f => f.id === prompt.id);
+      if (isFavorite) {
+        return prevFavorites.filter(f => f.id !== prompt.id);
+      } else {
+        return [...prevFavorites, {
+          ...prompt,
+          addedAt: "Today"
+        }];
+      }
+    });
+  }, []);
 
   // Updated search logic - now triggered when searchQuery changes
   // This is automatically called when the SearchBar component updates the searchQuery
@@ -105,10 +118,10 @@ export const AppContextProvider = ({ children }) => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [searchQuery, activeFilters, promptDatabase]);
+  }, [searchQuery, activeFilters]);
 
-  // Value object to provide through context
-  const value = {
+  // Value object to provide through context - memoize to prevent unnecessary re-renders
+  const value = useMemo(() => ({
     // Data
     promptDatabase,
     recentlyUsedPrompts,
@@ -140,7 +153,11 @@ export const AppContextProvider = ({ children }) => {
     openPlayground,
     handleFilterClick,
     toggleFavorite
-  };
+  }), [
+    favorites, workflows, searchQuery, searchResults, isLoading, activeFilters,
+    selectedPrompt, playgroundInput, selectedWorkflow, openPlayground,
+    handleFilterClick, toggleFavorite, popularPrompts
+  ]);
 
   return (
     <AppContext.Provider value={value}>
