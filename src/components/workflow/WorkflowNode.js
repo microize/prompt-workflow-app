@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Move, X, Copy, Edit, Check } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 
@@ -15,10 +15,18 @@ const WorkflowNode = ({ node }) => {
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(node.title);
+  const [contentValue, setContentValue] = useState(node.content);
   
   const inputHandleRef = useRef(null);
   const outputHandleRef = useRef(null);
   const titleInputRef = useRef(null);
+  const nodeRef = useRef(null);
+
+  // Update local state when node prop changes
+  useEffect(() => {
+    setTitleValue(node.title);
+    setContentValue(node.content);
+  }, [node.title, node.content]);
 
   // Determine styling based on node type
   const getNodeColorClass = () => {
@@ -47,7 +55,9 @@ const WorkflowNode = ({ node }) => {
     }
   };
 
-  const handleTitleClick = () => {
+  // Handle title interaction
+  const handleTitleClick = (e) => {
+    e.stopPropagation();
     setIsEditingTitle(true);
     setTimeout(() => {
       if (titleInputRef.current) {
@@ -55,6 +65,10 @@ const WorkflowNode = ({ node }) => {
         titleInputRef.current.select();
       }
     }, 10);
+  };
+
+  const handleTitleChange = (e) => {
+    setTitleValue(e.target.value);
   };
 
   const handleTitleBlur = () => {
@@ -75,13 +89,44 @@ const WorkflowNode = ({ node }) => {
     }
   };
 
+  // Handle content interaction
+  const handleContentChange = (e) => {
+    setContentValue(e.target.value);
+  };
+
+  const handleContentBlur = () => {
+    handleNodeTextChange(node.id, contentValue);
+  };
+
+  // Handle node actions
   const handleDuplicateNode = (e) => {
     e.stopPropagation();
     duplicateNode(node.id);
   };
 
+  const handleDeleteNode = (e) => {
+    e.stopPropagation();
+    deleteNode(node.id);
+  };
+
+  // Add this to make sure node is focused when moved
+  useEffect(() => {
+    const handleWindowMouseDown = (e) => {
+      if (nodeRef.current && !nodeRef.current.contains(e.target)) {
+        setIsEditingTitle(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleWindowMouseDown);
+    
+    return () => {
+      window.removeEventListener('mousedown', handleWindowMouseDown);
+    };
+  }, []);
+
   return (
     <div
+      ref={nodeRef}
       className={`absolute rounded-lg shadow-md border ${getNodeColorClass()}`}
       style={{
         left: `${node.position.x}px`,
@@ -105,7 +150,7 @@ const WorkflowNode = ({ node }) => {
               ref={titleInputRef}
               type="text"
               value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
+              onChange={handleTitleChange}
               onBlur={handleTitleBlur}
               onKeyDown={handleTitleKeyDown}
               className="font-medium text-sm w-full bg-transparent border-b border-gray-400 focus:outline-none focus:border-blue-500"
@@ -113,7 +158,7 @@ const WorkflowNode = ({ node }) => {
             />
           ) : (
             <span 
-              className="font-medium text-sm truncate flex-1" 
+              className="font-medium text-sm truncate flex-1 cursor-text" 
               onClick={handleTitleClick}
               title="Click to edit title"
             >
@@ -125,14 +170,14 @@ const WorkflowNode = ({ node }) => {
         <div className="flex items-center gap-1">
           <button 
             onClick={handleDuplicateNode}
-            className="text-gray-400 hover:text-blue-500 transition-colors"
+            className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-white"
             title="Duplicate node"
           >
             <Copy size={14} />
           </button>
           <button 
-            onClick={() => deleteNode(node.id)}
-            className="text-gray-400 hover:text-red-500 transition-colors"
+            onClick={handleDeleteNode}
+            className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-white"
             title="Delete node"
           >
             <X size={14} />
@@ -146,8 +191,9 @@ const WorkflowNode = ({ node }) => {
           className={`w-full text-sm p-2 border border-gray-200 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
             node.type === 'prompt' ? 'h-24' : 'h-16'
           }`}
-          value={node.content}
-          onChange={(e) => handleNodeTextChange(node.id, e.target.value)}
+          value={contentValue}
+          onChange={handleContentChange}
+          onBlur={handleContentBlur}
           placeholder={`Enter ${node.type} details...`}
           onClick={(e) => e.stopPropagation()}
         />
@@ -161,9 +207,8 @@ const WorkflowNode = ({ node }) => {
       {/* Input Connection Handle */}
       <div 
         ref={inputHandleRef}
-        className="absolute w-6 h-6 rounded-full bg-gray-400 cursor-crosshair left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2
-                   flex items-center justify-center hover:scale-110 transition-transform"
-        style={{ zIndex: 20 }}
+        className={`absolute w-6 h-6 rounded-full bg-gray-400 cursor-crosshair left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2
+                   flex items-center justify-center hover:scale-110 transition-transform z-20`}
         data-handle-type="input"
         data-node-id={node.id}
         onMouseUp={(e) => endConnectionDraw(e, node, 'input')}
@@ -176,8 +221,7 @@ const WorkflowNode = ({ node }) => {
       <div 
         ref={outputHandleRef}
         className={`absolute w-6 h-6 rounded-full ${getHandleColorClass()} cursor-crosshair right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2
-                   flex items-center justify-center hover:scale-110 transition-transform`}
-        style={{ zIndex: 20 }}
+                   flex items-center justify-center hover:scale-110 transition-transform z-20`}
         data-handle-type="output"
         data-node-id={node.id}
         onMouseDown={(e) => startConnectionDraw(e, node, 'output')}

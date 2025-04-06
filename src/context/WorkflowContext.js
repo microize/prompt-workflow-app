@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useRef, useCallback } from 'react';
+import React, { createContext, useState, useContext, useRef, useCallback, useEffect } from 'react';
+import { useAppContext } from './AppContext';
 
 // Create context
 const WorkflowContext = createContext();
@@ -7,6 +8,8 @@ const WorkflowContext = createContext();
 export const useWorkflowContext = () => useContext(WorkflowContext);
 
 export const WorkflowContextProvider = ({ children }) => {
+  const { selectedWorkflow } = useAppContext();
+  
   // State for workflow canvas
   const [nodes, setNodes] = useState([]);
   const [connections, setConnections] = useState([]);
@@ -20,6 +23,50 @@ export const WorkflowContextProvider = ({ children }) => {
   const [potentialTarget, setPotentialTarget] = useState(null);
   const [lastCreatedNodeId, setLastCreatedNodeId] = useState(null);
   const canvasRef = useRef(null);
+  
+  // Load selected workflow if one is chosen
+  useEffect(() => {
+    if (selectedWorkflow) {
+      // In a real app, this would handle conversion from template to workable nodes
+      // For now, we'll just create some placeholder nodes
+      const templateNodes = [
+        {
+          id: `template-${Date.now()}-1`,
+          type: 'prompt',
+          title: selectedWorkflow.steps[0]?.name || 'Template Start',
+          position: { x: 100, y: 150 },
+          content: selectedWorkflow.steps[0]?.prompt || 'Template content'
+        }
+      ];
+      
+      // Add more nodes if there are more steps
+      if (selectedWorkflow.steps.length > 1) {
+        selectedWorkflow.steps.slice(1).forEach((step, index) => {
+          templateNodes.push({
+            id: `template-${Date.now()}-${index+2}`,
+            type: index % 2 === 0 ? 'action' : 'condition',
+            title: step.name,
+            position: { x: 100 + (index+1) * 250, y: 150 },
+            content: step.prompt
+          });
+        });
+        
+        // Create connections between the nodes
+        const templateConnections = [];
+        for (let i = 0; i < templateNodes.length - 1; i++) {
+          templateConnections.push({
+            id: `conn-${templateNodes[i].id}-${templateNodes[i+1].id}`,
+            source: templateNodes[i].id,
+            target: templateNodes[i+1].id
+          });
+        }
+        
+        setConnections(templateConnections);
+      }
+      
+      setNodes(templateNodes);
+    }
+  }, [selectedWorkflow]);
 
   // Functions for managing nodes
   const addNewNode = useCallback((type, position = null) => {
@@ -38,7 +85,7 @@ export const WorkflowContextProvider = ({ children }) => {
       };
     }
     
-    const newNodeId = Date.now().toString();
+    const newNodeId = `node-${Date.now()}`; // Ensure unique ID format
     const newNode = {
       id: newNodeId,
       type: type,
@@ -54,8 +101,10 @@ export const WorkflowContextProvider = ({ children }) => {
     return newNode;
   }, [canvasRef]);
   
-  // Improved node drag handling
+  // Improved node drag handling with proper cleanup
   const handleNodeMouseDown = useCallback((e, node) => {
+    // Prevent default behavior to avoid text selection
+    e.preventDefault();
     e.stopPropagation();
     
     // Only start dragging if we're in the header area
@@ -75,8 +124,12 @@ export const WorkflowContextProvider = ({ children }) => {
       y: node.position.y
     });
     
-    // Add event listeners to handle drag on the whole document
+    // Define the handlers outside the add/remove cycle
     const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      
+      if (!isDragging || !currentNode) return;
+      
       const dx = moveEvent.clientX - startPosition.x;
       const dy = moveEvent.clientY - startPosition.y;
       
@@ -103,26 +156,31 @@ export const WorkflowContextProvider = ({ children }) => {
       }));
     };
     
-    const handleMouseUp = () => {
+    const handleMouseUp = (upEvent) => {
+      upEvent.preventDefault();
       setIsDragging(false);
       setCurrentNode(null);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
     
+    // Add event listeners to handle drag on the whole document
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, []);
+  }, [canvasRef, currentNode, isDragging, nodeDragStart, startPosition]);
   
   // Improved canvas mouse move handler
   const handleCanvasMouseMove = useCallback((e) => {
-    // Connection drawing logic only - node dragging is handled separately now
+    // Only handle connection drawing logic here
     if (isDrawingConnection && connectionStart) {
       // Get canvas coordinates
       const canvasRect = canvasRef.current.getBoundingClientRect();
+      const canvasX = e.clientX - canvasRect.left + canvasRef.current.scrollLeft;
+      const canvasY = e.clientY - canvasRect.top + canvasRef.current.scrollTop;
+      
       setConnectionEnd({
-        x: e.clientX,
-        y: e.clientY
+        x: canvasX,
+        y: canvasY
       });
       
       // Check if we're hovering over a potential connection target
@@ -135,11 +193,11 @@ export const WorkflowContextProvider = ({ children }) => {
         
         // Make sure we're not trying to connect to the same node
         if (nodeId !== connectionStart.nodeId) {
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
+          const centerX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
+          const centerY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
           const distance = Math.sqrt(
-            Math.pow(e.clientX - centerX, 2) + 
-            Math.pow(e.clientY - centerY, 2)
+            Math.pow(canvasX - centerX, 2) + 
+            Math.pow(canvasY - centerY, 2)
           );
           
           // If cursor is within 20px of the handle center
@@ -195,13 +253,17 @@ export const WorkflowContextProvider = ({ children }) => {
     // Only allow starting connection from output handle
     if (handleType !== 'output') return;
     
+    // Set drawing state
     setIsDrawingConnection(true);
     
     // Get the position of the output handle
     const handleElement = e.currentTarget;
     const rect = handleElement.getBoundingClientRect();
-    const startX = rect.left + rect.width / 2;
-    const startY = rect.top + rect.height / 2;
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    
+    // Calculate position relative to the canvas
+    const startX = rect.left - canvasRect.left + canvasRef.current.scrollLeft + rect.width / 2;
+    const startY = rect.top - canvasRect.top + canvasRef.current.scrollTop + rect.height / 2;
     
     setConnectionStart({
       nodeId: node.id,
@@ -210,91 +272,21 @@ export const WorkflowContextProvider = ({ children }) => {
     });
     
     setConnectionEnd({
-      x: e.clientX,
-      y: e.clientY
+      x: startX,
+      y: startY
     });
-    
-    // Create temporary event listeners for drawing
-    const handleMouseMove = (moveEvent) => {
-      setConnectionEnd({
-        x: moveEvent.clientX,
-        y: moveEvent.clientY
-      });
-      
-      // Check for potential targets
-      const handleElements = document.querySelectorAll('[data-handle-type="input"]');
-      let foundTarget = null;
-      
-      handleElements.forEach(handleEl => {
-        const rect = handleEl.getBoundingClientRect();
-        const targetNodeId = handleEl.getAttribute('data-node-id');
-        
-        // Don't connect to the same node
-        if (targetNodeId !== node.id) {
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
-          const distance = Math.sqrt(
-            Math.pow(moveEvent.clientX - centerX, 2) + 
-            Math.pow(moveEvent.clientY - centerY, 2)
-          );
-          
-          if (distance < 20) {
-            foundTarget = {
-              nodeId: targetNodeId,
-              x: centerX,
-              y: centerY
-            };
-          }
-        }
-      });
-      
-      setPotentialTarget(foundTarget);
-    };
-    
-    const handleMouseUp = (upEvent) => {
-      // Create connection if we have a target
-      if (potentialTarget) {
-        const newConnection = {
-          id: `conn-${node.id}-${potentialTarget.nodeId}`,
-          source: node.id,
-          target: potentialTarget.nodeId
-        };
-        
-        // Check for duplicates
-        const isDuplicate = connections.some(conn => 
-          conn.source === newConnection.source && conn.target === newConnection.target
-        );
-        
-        if (!isDuplicate) {
-          setConnections(prev => [...prev, newConnection]);
-        }
-      }
-      
-      // Reset states
-      setIsDrawingConnection(false);
-      setConnectionStart(null);
-      setConnectionEnd({ x: 0, y: 0 });
-      setPotentialTarget(null);
-      
-      // Remove temporary listeners
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [connections, potentialTarget]);
+  }, [canvasRef]);
   
   // Connection drawing end point handler
   const endConnectionDraw = useCallback((e, node, handleType) => {
     // Only allow ending on input handles
-    if (handleType !== 'input' || !isDrawingConnection) return;
+    if (handleType !== 'input' || !isDrawingConnection || !connectionStart) return;
     
     e.stopPropagation();
     e.preventDefault();
     
-    // Only create connection if we have a valid start
-    if (connectionStart && connectionStart.nodeId !== node.id) {
+    // Only create connection if we have a valid start and it's not the same node
+    if (connectionStart.nodeId !== node.id) {
       const newConnection = {
         id: `conn-${connectionStart.nodeId}-${node.id}`,
         source: connectionStart.nodeId,
@@ -347,7 +339,7 @@ export const WorkflowContextProvider = ({ children }) => {
     
     const newNode = {
       ...nodeToDuplicate,
-      id: Date.now().toString(),
+      id: `node-${Date.now()}`,
       position: {
         x: nodeToDuplicate.position.x + 30,
         y: nodeToDuplicate.position.y + 30
@@ -355,6 +347,7 @@ export const WorkflowContextProvider = ({ children }) => {
     };
     
     setNodes(prevNodes => [...prevNodes, newNode]);
+    setLastCreatedNodeId(newNode.id);
     return newNode.id;
   }, [nodes]);
   
@@ -377,7 +370,7 @@ export const WorkflowContextProvider = ({ children }) => {
       if (node.id === nodeId) {
         return {
           ...node,
-          title: newTitle
+          title: newTitle || node.title // Prevent empty titles
         };
       }
       return node;
@@ -425,6 +418,26 @@ export const WorkflowContextProvider = ({ children }) => {
       if (!parsedData.nodes || !Array.isArray(parsedData.nodes) || 
           !parsedData.connections || !Array.isArray(parsedData.connections)) {
         throw new Error("Invalid workflow data format");
+      }
+      
+      // Validate node structure
+      const validNodes = parsedData.nodes.every(node => 
+        node.id && node.type && node.position && 
+        typeof node.position.x === 'number' && 
+        typeof node.position.y === 'number'
+      );
+      
+      if (!validNodes) {
+        throw new Error("Invalid node structure in imported data");
+      }
+      
+      // Validate connections structure
+      const validConnections = parsedData.connections.every(conn => 
+        conn.id && conn.source && conn.target
+      );
+      
+      if (!validConnections) {
+        throw new Error("Invalid connection structure in imported data");
       }
       
       setNodes(parsedData.nodes);

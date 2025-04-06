@@ -35,19 +35,25 @@ const Canvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const handleMouseMove = (e) => {
-      handleCanvasMouseMove(e);
+    // Define a throttled mousemove handler to improve performance
+    let lastMoveTime = 0;
+    const throttledMouseMove = (e) => {
+      const now = Date.now();
+      if (now - lastMoveTime >= 16) { // ~60fps
+        handleCanvasMouseMove(e);
+        lastMoveTime = now;
+      }
     };
 
     const handleMouseUp = (e) => {
       handleCanvasMouseUp(e);
     };
 
-    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mousemove', throttledMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mousemove', throttledMouseMove);
       canvas.removeEventListener('mouseup', handleMouseUp);
     };
   }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
@@ -57,11 +63,14 @@ const Canvas = () => {
     if (lastCreatedNodeId && nodes.length > 0) {
       const newNode = nodes.find(n => n.id === lastCreatedNodeId);
       if (newNode && canvasRef.current) {
-        canvasRef.current.scrollTo({
-          left: newNode.position.x - 100,
-          top: newNode.position.y - 100,
-          behavior: 'smooth'
-        });
+        // Use a small delay to ensure the node is rendered
+        setTimeout(() => {
+          canvasRef.current.scrollTo({
+            left: Math.max(0, newNode.position.x - 100),
+            top: Math.max(0, newNode.position.y - 100),
+            behavior: 'smooth'
+          });
+        }, 50);
       }
     }
   }, [lastCreatedNodeId, nodes]);
@@ -87,9 +96,9 @@ const Canvas = () => {
     }
   };
   
-  // Handle canvas panning
+  // Handle canvas panning - use middle mouse button or Ctrl+drag
   const handleCanvasMouseDown = (e) => {
-    // Only initiate panning with middle mouse button (button 1) or space+left click
+    // Only initiate panning with middle mouse button (button 1) or Ctrl+left click
     if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
       e.preventDefault();
       setIsPanning(true);
@@ -98,6 +107,11 @@ const Canvas = () => {
       // Add event listeners for panning
       document.addEventListener('mousemove', handlePanMove);
       document.addEventListener('mouseup', handlePanEnd);
+      
+      // Change cursor during panning
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = 'grabbing';
+      }
     }
   };
   
@@ -120,14 +134,30 @@ const Canvas = () => {
     setIsPanning(false);
     document.removeEventListener('mousemove', handlePanMove);
     document.removeEventListener('mouseup', handlePanEnd);
+    
+    // Reset cursor
+    if (canvasRef.current) {
+      canvasRef.current.style.cursor = '';
+    }
   };
   
-  // Handle mousewheel for zooming
+  // Handle mousewheel for zooming - throttled for better performance
   const handleWheel = (e) => {
     if (e.ctrlKey) {
       e.preventDefault();
-      const zoomIn = e.deltaY < 0;
-      handleZoom(zoomIn);
+      
+      // Throttle wheel events
+      if (!e.target.dataset.wheelThrottle) {
+        e.target.dataset.wheelThrottle = true;
+        
+        const zoomIn = e.deltaY < 0;
+        handleZoom(zoomIn);
+        
+        // Reset throttle after a short delay
+        setTimeout(() => {
+          e.target.dataset.wheelThrottle = false;
+        }, 50);
+      }
     }
   };
 
@@ -135,52 +165,45 @@ const Canvas = () => {
   const handleContextMenu = (e) => {
     e.preventDefault();
     
-    // Get canvas coordinates
+    // Get canvas coordinates, accounting for scroll and zoom
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current;
+    const y = (e.clientY - rect.top + canvasRef.current.scrollTop) / zoomLevelRef.current;
     
-    // Show a simple context menu
+    // Create context menu with improved styling and simplified options
     const menu = document.createElement('div');
-    menu.className = 'absolute bg-white shadow-lg rounded-md z-50';
+    menu.className = 'absolute bg-white shadow-md rounded-md z-50 overflow-hidden';
     menu.style.left = `${e.clientX}px`;
     menu.style.top = `${e.clientY}px`;
     
-    const addPromptButton = document.createElement('button');
-    addPromptButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
-    addPromptButton.innerText = 'Add Prompt Node';
-    addPromptButton.onclick = () => {
-      addNewNode('prompt', { x, y });
-      document.body.removeChild(menu);
-    };
+    // Add menu options with clear visual design
+    const options = [
+      { label: 'Add Prompt Node', type: 'prompt', color: 'bg-blue-50 hover:bg-blue-100' },
+      { label: 'Add Action Node', type: 'action', color: 'bg-purple-50 hover:bg-purple-100' },
+      { label: 'Add Condition Node', type: 'condition', color: 'bg-amber-50 hover:bg-amber-100' }
+    ];
     
-    const addActionButton = document.createElement('button');
-    addActionButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
-    addActionButton.innerText = 'Add Action Node';
-    addActionButton.onclick = () => {
-      addNewNode('action', { x, y });
-      document.body.removeChild(menu);
-    };
+    options.forEach(option => {
+      const button = document.createElement('button');
+      button.className = `block w-full text-left px-4 py-2 ${option.color} text-sm transition-colors`;
+      button.innerText = option.label;
+      button.onclick = () => {
+        addNewNode(option.type, { x, y });
+        document.body.removeChild(menu);
+      };
+      menu.appendChild(button);
+    });
     
-    const addConditionButton = document.createElement('button');
-    addConditionButton.className = 'block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm';
-    addConditionButton.innerText = 'Add Condition Node';
-    addConditionButton.onclick = () => {
-      addNewNode('condition', { x, y });
-      document.body.removeChild(menu);
-    };
-    
-    menu.appendChild(addPromptButton);
-    menu.appendChild(addActionButton);
-    menu.appendChild(addConditionButton);
     document.body.appendChild(menu);
     
     // Handle click outside to close menu
-    const handleOutsideClick = () => {
-      if (document.body.contains(menu)) {
-        document.body.removeChild(menu);
+    const handleOutsideClick = (evt) => {
+      if (!menu.contains(evt.target)) {
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu);
+        }
+        document.removeEventListener('click', handleOutsideClick);
       }
-      document.removeEventListener('click', handleOutsideClick);
     };
     
     // Delay adding the listener to prevent immediate closure

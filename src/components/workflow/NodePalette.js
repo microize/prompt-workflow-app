@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, GitBranch, Search, X, BookOpen, Play } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import Badge from '../common/Badge';
@@ -7,32 +7,46 @@ const NodePalette = ({ workflows }) => {
   const { addNewNode, canvasRef } = useWorkflowContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [showTemplateDetails, setShowTemplateDetails] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Enhanced drag handling
+  // Enhanced drag handling with better visual feedback
   const handleDragStart = (e, nodeType) => {
     e.dataTransfer.setData('nodeType', nodeType);
     e.dataTransfer.effectAllowed = 'copy';
+    setIsDragging(true);
     
-    // Create a ghost image
+    // Create a custom drag image
     const ghostEl = document.createElement('div');
-    ghostEl.classList.add('bg-white', 'border', 'rounded-lg', 'p-3', 'shadow-lg');
-    ghostEl.style.width = '150px';
-    ghostEl.style.height = '80px';
-    ghostEl.style.zIndex = '1000';
-    ghostEl.style.position = 'absolute';
-    ghostEl.style.top = '-1000px';
-    ghostEl.innerText = nodeType === 'prompt' ? 'Prompt Node' : 
-                        nodeType === 'action' ? 'Action Node' : 'Condition Node';
+    ghostEl.innerHTML = `
+      <div style="padding: 10px; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 150px;">
+        <div style="font-weight: 500; font-size: 14px;">${
+          nodeType === 'prompt' ? 'Prompt Node' : 
+          nodeType === 'action' ? 'Action Node' : 'Condition Node'
+        }</div>
+      </div>
+    `;
+    const dragImage = ghostEl.firstChild;
+    document.body.appendChild(dragImage);
     
-    document.body.appendChild(ghostEl);
-    e.dataTransfer.setDragImage(ghostEl, 75, 40);
+    // Position it offscreen so it can be captured
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-1000px';
+    dragImage.style.left = '-1000px';
     
+    // Set the drag image with correct offset
+    e.dataTransfer.setDragImage(dragImage, 75, 30);
+    
+    // Remove the element after drag starts
     setTimeout(() => {
-      document.body.removeChild(ghostEl);
-    }, 0);
+      document.body.removeChild(dragImage);
+    }, 100);
+  };
+  
+  const handleDragEnd = () => {
+    setIsDragging(false);
   };
 
-  // Handle the drop on canvas
+  // Handle the drop on canvas - implementation is now in the useEffect below
   const handleCanvasDrop = (e) => {
     e.preventDefault();
     
@@ -42,32 +56,13 @@ const NodePalette = ({ workflows }) => {
     if (!nodeType) return;
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
-    const dropX = e.clientX - canvasRect.left;
-    const dropY = e.clientY - canvasRect.top;
+    
+    // Calculate drop position considering scroll position
+    const dropX = e.clientX - canvasRect.left + canvasRef.current.scrollLeft;
+    const dropY = e.clientY - canvasRect.top + canvasRef.current.scrollTop;
     
     // Add the node at the drop position
-    addNodeAtPosition(nodeType, dropX, dropY);
-  };
-  
-  // Function to add node at specific position
-  const addNodeAtPosition = (type, x, y) => {
-    if (!canvasRef.current) return;
-    
-    const newNode = {
-      id: Date.now(),
-      type: type,
-      title: type === 'prompt' ? 'New Prompt' : 
-             type === 'action' ? 'New Action' : 'New Condition',
-      position: {
-        x: Math.max(0, x - 100), // Center the node at drop point
-        y: Math.max(0, y - 30)
-      },
-      content: type === 'prompt' ? 'Enter your prompt here...' : 
-               type === 'action' ? 'Action configuration' : 'Condition settings'
-    };
-    
-    // Add to nodes
-    addNewNode(type, newNode.position);
+    addNewNode(nodeType, { x: dropX - 100, y: dropY - 30 });
   };
 
   // Handle double-click on component
@@ -97,7 +92,7 @@ const NodePalette = ({ workflows }) => {
   };
 
   // Set up event listeners for canvas drop zone
-  React.useEffect(() => {
+  useEffect(() => {
     if (!canvasRef.current) return;
     
     const canvas = canvasRef.current;
@@ -105,16 +100,32 @@ const NodePalette = ({ workflows }) => {
     const handleDragOver = (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
+      
+      // Add a visual indicator that the canvas is a drop target
+      canvas.classList.add('bg-blue-50', 'bg-opacity-30');
+    };
+    
+    const handleDragLeave = () => {
+      // Remove the visual indicator when drag leaves
+      canvas.classList.remove('bg-blue-50', 'bg-opacity-30');
+    };
+    
+    const handleDrop = (e) => {
+      // Remove the visual indicator
+      canvas.classList.remove('bg-blue-50', 'bg-opacity-30');
+      handleCanvasDrop(e);
     };
     
     canvas.addEventListener('dragover', handleDragOver);
-    canvas.addEventListener('drop', handleCanvasDrop);
+    canvas.addEventListener('dragleave', handleDragLeave);
+    canvas.addEventListener('drop', handleDrop);
     
     return () => {
       canvas.removeEventListener('dragover', handleDragOver);
-      canvas.removeEventListener('drop', handleCanvasDrop);
+      canvas.removeEventListener('dragleave', handleDragLeave);
+      canvas.removeEventListener('drop', handleDrop);
     };
-  }, [canvasRef]);
+  }, [canvasRef, handleCanvasDrop]);
 
   return (
     <div className="w-64 border-r border-neutral-200 flex flex-col h-full bg-white">
@@ -124,9 +135,12 @@ const NodePalette = ({ workflows }) => {
         
         <div className="space-y-2">
           <div 
-            className="bg-blue-50 border border-blue-100 p-3 rounded-lg cursor-move flex items-center gap-2 hover:shadow-md transition-shadow"
+            className={`bg-blue-50 border border-blue-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
+              isDragging ? 'opacity-50' : 'hover:shadow-md'
+            } transition-all`}
             draggable="true"
             onDragStart={(e) => handleDragStart(e, 'prompt')}
+            onDragEnd={handleDragEnd}
             onDoubleClick={() => handleDoubleClick('prompt')}
             title="Drag to canvas or double-click to add"
           >
@@ -138,9 +152,12 @@ const NodePalette = ({ workflows }) => {
           </div>
           
           <div 
-            className="bg-purple-50 border border-purple-100 p-3 rounded-lg cursor-move flex items-center gap-2 hover:shadow-md transition-shadow"
+            className={`bg-purple-50 border border-purple-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
+              isDragging ? 'opacity-50' : 'hover:shadow-md'
+            } transition-all`}
             draggable="true"
             onDragStart={(e) => handleDragStart(e, 'action')}
+            onDragEnd={handleDragEnd}
             onDoubleClick={() => handleDoubleClick('action')}
             title="Drag to canvas or double-click to add"
           >
@@ -152,9 +169,12 @@ const NodePalette = ({ workflows }) => {
           </div>
           
           <div 
-            className="bg-amber-50 border border-amber-100 p-3 rounded-lg cursor-move flex items-center gap-2 hover:shadow-md transition-shadow"
+            className={`bg-amber-50 border border-amber-100 p-3 rounded-lg cursor-move flex items-center gap-2 ${
+              isDragging ? 'opacity-50' : 'hover:shadow-md'
+            } transition-all`}
             draggable="true"
             onDragStart={(e) => handleDragStart(e, 'condition')}
+            onDragEnd={handleDragEnd}
             onDoubleClick={() => handleDoubleClick('condition')}
             title="Drag to canvas or double-click to add"
           >
@@ -220,10 +240,13 @@ const NodePalette = ({ workflows }) => {
       {/* Template Details Modal */}
       {showTemplateDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-full">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-full max-h-[80vh] overflow-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">{showTemplateDetails.name}</h3>
-              <button onClick={() => setShowTemplateDetails(null)} className="text-neutral-500 hover:text-neutral-700">
+              <button 
+                onClick={() => setShowTemplateDetails(null)} 
+                className="text-neutral-500 hover:text-neutral-700 p-1 rounded-full hover:bg-neutral-100"
+              >
                 <X size={20} />
               </button>
             </div>

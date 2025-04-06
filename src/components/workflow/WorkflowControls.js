@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { PlayCircle, Save, Download, Upload, Trash2, Share2, Code, Settings, FileUp } from 'lucide-react';
+import { PlayCircle, Save, Download, Upload, Trash2, Code, Settings } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 
 /**
@@ -45,9 +45,41 @@ const WorkflowControls = () => {
         
         // Highlight each node in sequence to simulate execution
         const nodeElements = document.querySelectorAll('[data-node-id]');
-        for (let node of entryNodes) {
-          await executeNode(node.id, nodeElements);
-        }
+        
+        // Create a function to follow the workflow path
+        const processNode = async (nodeId, visited = new Set()) => {
+          if (visited.has(nodeId)) return; // Prevent infinite loops
+          visited.add(nodeId);
+          
+          // Find the node element
+          const nodeElement = Array.from(nodeElements).find(
+            el => el.getAttribute('data-node-id') === nodeId
+          );
+          
+          if (nodeElement) {
+            // Add a highlight class
+            nodeElement.classList.add('bg-green-100');
+            nodeElement.classList.add('border-green-400');
+            
+            // Wait a moment to simulate processing
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Remove highlight
+            nodeElement.classList.remove('bg-green-100');
+            nodeElement.classList.remove('border-green-400');
+          }
+          
+          // Find outgoing connections
+          const outgoingConnections = connections.filter(conn => conn.source === nodeId);
+          
+          // Follow each connection - process them in parallel
+          await Promise.all(outgoingConnections.map(conn => 
+            processNode(conn.target, new Set(visited))
+          ));
+        };
+        
+        // Execute each entry node as a starting point
+        await Promise.all(entryNodes.map(node => processNode(node.id)));
         
         // Success message
         alert('Workflow execution completed successfully!');
@@ -56,35 +88,6 @@ const WorkflowControls = () => {
         alert('Error during workflow execution: ' + error.message);
       } finally {
         setIsRunning(false);
-      }
-    };
-    
-    // Execute a single node and follow its connections
-    const executeNode = async (nodeId, nodeElements) => {
-      // Find the node element
-      const nodeElement = Array.from(nodeElements).find(
-        el => el.getAttribute('data-node-id') === nodeId
-      );
-      
-      if (nodeElement) {
-        // Add a highlight class
-        nodeElement.classList.add('bg-green-100');
-        nodeElement.classList.add('border-green-400');
-        
-        // Wait a moment to simulate processing
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // Remove highlight
-        nodeElement.classList.remove('bg-green-100');
-        nodeElement.classList.remove('border-green-400');
-      }
-      
-      // Find outgoing connections
-      const outgoingConnections = connections.filter(conn => conn.source === nodeId);
-      
-      // Follow each connection
-      for (let conn of outgoingConnections) {
-        await executeNode(conn.target, nodeElements);
       }
     };
     
@@ -127,16 +130,20 @@ const WorkflowControls = () => {
       console.log('Saving workflow:', workflow);
       
       // In a real app, you would make an API call here
-      localStorage.setItem(`workflow-${workflow.id}`, JSON.stringify(workflow));
+      try {
+        localStorage.setItem(`workflow-${workflow.id}`, JSON.stringify(workflow));
+        alert('Workflow saved successfully!');
+      } catch (error) {
+        console.error('Error saving workflow:', error);
+        alert('Failed to save workflow. Please try again.');
+      }
       
       setIsSaving(false);
       setShowSaveModal(false);
       setWorkflowName('');
       setWorkflowDescription('');
       setWorkflowCategory('');
-      
-      alert('Workflow saved successfully!');
-    }, 1000);
+    }, 800);
   };
 
   // Function to handle uploading a workflow JSON file
@@ -197,7 +204,7 @@ const WorkflowControls = () => {
     
     const closeButton = document.createElement('button');
     closeButton.className = 'p-1 rounded hover:bg-gray-200';
-    closeButton.innerText = '×';
+    closeButton.innerHTML = '&times;';
     closeButton.onclick = () => document.body.removeChild(jsonModal);
     
     header.appendChild(title);
@@ -242,7 +249,9 @@ const WorkflowControls = () => {
         <div className="flex gap-2">
           <button 
             onClick={clearCanvas}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1"
+            className={`px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1 transition-colors ${
+              nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-neutral-50'
+            }`}
             disabled={nodes.length === 0}
             title="Clear all nodes and connections"
           >
@@ -252,7 +261,9 @@ const WorkflowControls = () => {
           
           <button 
             onClick={showWorkflowJson}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1"
+            className={`px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1 transition-colors ${
+              nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-neutral-50'
+            }`}
             disabled={nodes.length === 0}
             title="View workflow as JSON"
           >
@@ -262,7 +273,9 @@ const WorkflowControls = () => {
           
           <button 
             onClick={exportWorkflow}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1"
+            className={`px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1 transition-colors ${
+              nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-neutral-50'
+            }`}
             disabled={nodes.length === 0}
             title="Export workflow as JSON file"
           >
@@ -272,7 +285,7 @@ const WorkflowControls = () => {
           
           <button 
             onClick={handleUploadWorkflow}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1"
+            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-700 flex items-center gap-1 hover:bg-neutral-50 transition-colors"
             title="Import workflow from JSON file"
           >
             <Upload size={16} />
@@ -289,7 +302,9 @@ const WorkflowControls = () => {
           
           <button 
             onClick={handleSaveWorkflow}
-            className="px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
+            className={`px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors ${
+              isSaving || nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             disabled={isSaving || nodes.length === 0}
             title="Save workflow to your library"
           >
@@ -299,7 +314,9 @@ const WorkflowControls = () => {
           
           <button 
             onClick={handleRunWorkflow}
-            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
+            className={`px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors ${
+              isRunning || nodes.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             disabled={isRunning || nodes.length === 0}
             title="Execute the workflow"
           >
@@ -325,6 +342,7 @@ const WorkflowControls = () => {
                 onChange={(e) => setWorkflowName(e.target.value)}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Enter workflow name"
+                autoFocus
               />
             </div>
             
@@ -363,16 +381,19 @@ const WorkflowControls = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowSaveModal(false)}
-                className="px-4 py-2 border border-neutral-300 rounded-md text-neutral-700"
+                className="px-4 py-2 border border-neutral-300 rounded-md text-neutral-700 hover:bg-neutral-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={saveWorkflow}
-                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-md flex items-center gap-1"
+                className={`px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-md flex items-center gap-1 transition-colors ${
+                  isSaving || !workflowName.trim() ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 disabled={isSaving || !workflowName.trim()}
               >
-                {isSaving ? 'Saving...' : 'Save'}
+                <Save size={16} />
+                {isSaving ? 'Saving...' : 'Save Workflow'}
               </button>
             </div>
           </div>
@@ -383,4 +404,3 @@ const WorkflowControls = () => {
 };
 
 export default WorkflowControls;
-            
