@@ -21,23 +21,24 @@ const HomePage = () => {
         <SearchBar />
       </div>
       
+      {/* Filter section with text label for clarity */}
+      <div className="mb-6 mt-4">
+        <div className="flex items-center justify-center space-x-4">
+        <h3 className="text-[#3c4043] font-medium">Filter prompts by:</h3>
+        <FilterButtons />
+        </div>
+      </div>
+            
       {/* Search Results - shown when there's a search query */}
       {searchQuery && (
-        <div className="mb-10 mt-8">
+        <div className="mb-6 mt-4">
           <SearchResults searchQuery={searchQuery} />
         </div>
       )}
       
-      {/* Filter section with text label for clarity */}
-      <div className="mb-8 mt-10">
-        <div className="flex items-center justify-center mb-4">
-          <h3 className="text-[#3c4043] font-medium mr-2">Filter prompts by category:</h3>
-        </div>
-        <FilterButtons />
-      </div>
-      
+
       {/* Prompt Collections */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-8">
         <PromptCollection 
           title="Recently Used" 
           icon="clock"
