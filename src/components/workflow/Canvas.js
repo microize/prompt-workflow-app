@@ -25,6 +25,10 @@ const Canvas = () => {
   const panOffsetRef = useRef({ x: 0, y: 0 });
   // Ref for the canvas container to apply transforms
   const canvasContainerRef = useRef(null);
+  
+  // Pan state for drag-to-pan functionality
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   // Add event listeners for the canvas
   useEffect(() => {
@@ -82,10 +86,6 @@ const Canvas = () => {
       canvasContainerRef.current.style.transform = 'scale(1) translate(0px, 0px)';
     }
   };
-
-  // Pan state for drag-to-pan functionality
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   
   // Handle canvas panning
   const handleCanvasMouseDown = (e) => {
@@ -130,7 +130,7 @@ const Canvas = () => {
       handleZoom(zoomIn);
     }
   };
-  
+
   // Handle right-click to add node at position
   const handleContextMenu = (e) => {
     e.preventDefault();
@@ -187,5 +187,221 @@ const Canvas = () => {
     setTimeout(() => {
       document.addEventListener('click', handleOutsideClick);
     }, 100);
-  }
+  };
+
+  // Add useEffect for wheel event (using passive: false)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const handleWheelEvent = (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const zoomIn = e.deltaY < 0;
+        handleZoom(zoomIn);
+      }
+    };
+    
+    // Use the non-passive listener to be able to preventDefault
+    canvas.addEventListener('wheel', handleWheelEvent, { passive: false });
+    
+    return () => {
+      canvas.removeEventListener('wheel', handleWheelEvent);
+    };
+  }, []);
+
+  return (
+    <div className="flex-1 relative overflow-hidden bg-neutral-50">
+      {/* Zoom controls */}
+      <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-md p-2 flex flex-col space-y-2">
+        <button 
+          onClick={() => handleZoom(true)}
+          className="p-1 hover:bg-gray-100 rounded-md" 
+          title="Zoom In"
+        >
+          <ZoomIn size={18} />
+        </button>
+        <button 
+          onClick={() => handleZoom(false)}
+          className="p-1 hover:bg-gray-100 rounded-md"
+          title="Zoom Out"
+        >
+          <ZoomOut size={18} />
+        </button>
+        <button 
+          onClick={resetZoomAndPan}
+          className="p-1 hover:bg-gray-100 rounded-md"
+          title="Reset View"
+        >
+          <Maximize size={18} />
+        </button>
+      </div>
+      
+      <div 
+        ref={canvasRef}
+        className="w-full h-full overflow-auto relative" 
+        onContextMenu={handleContextMenu}
+        onMouseDown={handleCanvasMouseDown}
+        onWheel={handleWheel}
+      >
+        {/* Transformable content container */}
+        <div 
+          ref={canvasContainerRef}
+          className="min-w-full min-h-full origin-center relative transition-transform duration-100"
+          style={{ width: '3000px', height: '3000px' }}
+        >
+          {/* Grid Background */}
+          <div className="absolute inset-0 bg-grid-pattern"></div>
+          
+          {/* Connection Lines */}
+          <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+            {/* Existing Connections */}
+            {connections.map(connection => {
+              const sourceNode = nodes.find(n => n.id === connection.source);
+              const targetNode = nodes.find(n => n.id === connection.target);
+              
+              if (!sourceNode || !targetNode) return null;
+              
+              // Calculate the position of the connection points
+              const sourceX = sourceNode.position.x + 200; // Right side of source node
+              const sourceY = sourceNode.position.y + 60;  // Middle of node
+              const targetX = targetNode.position.x;       // Left side of target node
+              const targetY = targetNode.position.y + 60;  // Middle of node
+              
+              // Calculate the Bezier curve control points
+              const dx = Math.abs(targetX - sourceX);
+              const controlX1 = sourceX + dx * 0.25;
+              const controlY1 = sourceY;
+              const controlX2 = targetX - dx * 0.25;
+              const controlY2 = targetY;
+              
+              const pathD = `M${sourceX},${sourceY} C${controlX1},${controlY1} ${controlX2},${controlY2} ${targetX},${targetY}`;
+              
+              // Get the color based on node type
+              const getConnectionColor = () => {
+                switch (sourceNode.type) {
+                  case 'prompt': return '#4285f4';
+                  case 'action': return '#a142f4';
+                  case 'condition': return '#fbbc04';
+                  default: return '#94a3b8';
+                }
+              };
+              
+              return (
+                <g key={connection.id}>
+                  {/* Main visible connection line */}
+                  <path
+                    d={pathD}
+                    stroke={getConnectionColor()}
+                    strokeWidth="2"
+                    fill="none"
+                    className="connection-path pointer-events-auto transition-all duration-300"
+                  />
+                  
+                  {/* Arrow head */}
+                  <circle
+                    cx={targetX}
+                    cy={targetY}
+                    r="4"
+                    fill={getConnectionColor()}
+                  />
+                  
+                  {/* Invisible wider path for easier clicking/hovering */}
+                  <path
+                    d={pathD}
+                    stroke="transparent"
+                    strokeWidth="12"
+                    fill="none"
+                    className="pointer-events-auto cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteConnection(connection.id);
+                    }}
+                  />
+                </g>
+              );
+            })}
+            
+            {/* Active Connection Being Drawn */}
+            {isDrawingConnection && connectionStart && connectionEnd && (
+              <>
+                <path
+                  d={`M${connectionStart.x},${connectionStart.y} C${connectionStart.x + 50},${connectionStart.y} ${connectionEnd.x - 50},${connectionEnd.y} ${connectionEnd.x},${connectionEnd.y}`}
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeDasharray="5,5"
+                  className="connection-path-dashed"
+                />
+                
+                {/* Show a highlight for potential target */}
+                {potentialTarget && (
+                  <circle
+                    cx={potentialTarget.x}
+                    cy={potentialTarget.y}
+                    r="8"
+                    fill="#3b82f6"
+                    className="animate-pulse"
+                  />
+                )}
+              </>
+            )}
+          </svg>
+          
+          {/* Nodes */}
+          {nodes.map(node => (
+            <WorkflowNode 
+              key={node.id} 
+              node={node} 
+            />
+          ))}
+        </div>
+        
+        {/* Empty State - Outside of the transformable container */}
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center p-6 bg-white bg-opacity-90 rounded-xl shadow-sm">
+              <div className="flex flex-col items-center">
+                <GitBranch size={48} className="text-neutral-300 mb-4" />
+                <h3 className="text-xl font-medium text-neutral-500 mb-2">Start Building Your Workflow</h3>
+                <p className="text-neutral-400 mb-4">Drag components from the left panel onto this canvas or right-click to add nodes</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => addNewNode('prompt')}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Add Prompt
+                  </button>
+                  <button 
+                    onClick={() => addNewNode('action')}
+                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Add Action
+                  </button>
+                  <button 
+                    onClick={() => addNewNode('condition')}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Add Condition
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Canvas navigation guide */}
+      <div className="absolute bottom-4 left-4 z-20 bg-white rounded-lg shadow-md p-2 text-xs text-neutral-500">
+        <p>Right-click: Add node</p>
+        <p>Ctrl+Drag: Pan canvas</p>
+        <p>Ctrl+Wheel: Zoom</p>
+      </div>
+    </div>
+  );
 };
+
+export default Canvas;
