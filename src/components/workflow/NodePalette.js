@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Sparkles, ArrowRight, GitBranch, Search, X, BookOpen, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import { useDrag } from 'react-dnd';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import Badge from '../common/Badge';
 
-// Create a draggable component for workflow nodes with improved drag feedback
+// Create a draggable component for workflow nodes
 const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
-  const [{ isDragging }, drag, preview] = useDrag(() => ({
+  const [{ isDragging }, drag] = useDrag(() => ({
     type: 'WORKFLOW_NODE',
     item: { nodeType },
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging()
-    }),
-    // Add custom preview for better drag feedback
-    options: {
-      dropEffect: 'copy'
-    }
+    })
   }));
 
   // Determine color classes based on node type
@@ -31,19 +27,6 @@ const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
         return 'bg-neutral-50 border-neutral-100';
     }
   };
-
-  // Custom preview effect - pulse animation during drag
-  useEffect(() => {
-    if (isDragging) {
-      const dragPreview = document.createElement('div');
-      dragPreview.classList.add('drag-preview', nodeType);
-      document.body.appendChild(dragPreview);
-      
-      return () => {
-        document.body.removeChild(dragPreview);
-      };
-    }
-  }, [isDragging, nodeType]);
 
   return (
     <div
@@ -61,20 +44,20 @@ const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
   );
 };
 
-const NodePalette = ({ workflows }) => {
+const NodePalette = ({ workflows = [] }) => {
   const { addNewNode, canvasRef } = useWorkflowContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [showTemplateDetails, setShowTemplateDetails] = useState(null);
-  // Add state for collapsible sections
+  // State for collapsible sections
   const [componentsCollapsed, setComponentsCollapsed] = useState(false);
   const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
 
   // Filter workflows based on search term
-  const filteredWorkflows = workflows.filter(workflow => 
+  const filteredWorkflows = workflows?.filter(workflow => 
     workflow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     workflow.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     workflow.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
 
   // Show template details
   const handleShowTemplateDetails = (workflow) => {
@@ -106,7 +89,7 @@ const NodePalette = ({ workflows }) => {
 
   return (
     <div className="w-64 border-r border-neutral-200 flex flex-col h-full bg-white">
-      {/* Components Section with collapsible header */}
+      {/* Components Section */}
       <div className="border-b border-neutral-200">
         <button 
           onClick={() => setComponentsCollapsed(!componentsCollapsed)}
@@ -119,7 +102,7 @@ const NodePalette = ({ workflows }) => {
           }
         </button>
         
-        {/* Components content - hide when collapsed */}
+        {/* Components content */}
         <div className={`transition-all duration-300 overflow-hidden ${componentsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
           <div className="p-3 space-y-2">
             <div onDoubleClick={() => handleDoubleClick('prompt')} className="node-draggable">
@@ -152,7 +135,7 @@ const NodePalette = ({ workflows }) => {
         </div>
       </div>
       
-      {/* Templates Section - with collapsible header */}
+      {/* Templates Section */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <button 
           onClick={() => setTemplatesCollapsed(!templatesCollapsed)}
@@ -165,7 +148,7 @@ const NodePalette = ({ workflows }) => {
           }
         </button>
         
-        {/* Templates content - hide when collapsed */}
+        {/* Templates content */}
         <div className={`transition-all duration-300 overflow-hidden flex flex-col ${templatesCollapsed ? 'max-h-0 opacity-0' : 'flex-1 opacity-100'}`}>
           <div className="p-3 flex flex-col flex-1">
             <div className="relative mb-3">
@@ -295,21 +278,6 @@ const NodePalette = ({ workflows }) => {
         /* Highlight draggable areas */
         .node-draggable {
           position: relative;
-        }
-        
-        .connection-drawing-mode .input-handle {
-          animation: pulse 1.5s infinite ease-in-out;
-        }
-        
-        @keyframes pulse {
-          0% { transform: translate(-50%, -50%) scale(1); }
-          50% { transform: translate(-50%, -50%) scale(1.2); }
-          100% { transform: translate(-50%, -50%) scale(1); }
-        }
-        
-        .handle-highlight {
-          transform: translate(-50%, -50%) scale(1.2) !important;
-          box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
         }
       `}</style>
     </div>

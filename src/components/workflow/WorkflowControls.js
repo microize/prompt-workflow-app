@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { PlayCircle, Save, Download, Upload, Trash2, Code, Settings } from 'lucide-react';
+import { PlayCircle, Save, Download, Upload, Trash2, Code } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 
 /**

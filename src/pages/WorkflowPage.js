@@ -1,6 +1,6 @@
-// src/pages/WorkflowPage.js
-
 import React, { useEffect } from 'react';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useAppContext } from '../context/AppContext';
 import { WorkflowContextProvider } from '../context/WorkflowContext';
 import NodePalette from '../components/workflow/NodePalette';
@@ -10,17 +10,6 @@ import WorkflowControls from '../components/workflow/WorkflowControls';
 const WorkflowPage = () => {
   const { workflows, selectedWorkflow, setSelectedWorkflow } = useAppContext();
   
-  // Handle template selection
-  const handleTemplateChange = (e) => {
-    const selectedId = e.target.value;
-    if (selectedId) {
-      const workflow = workflows.find(w => w.id === parseInt(selectedId));
-      setSelectedWorkflow(workflow);
-    } else {
-      setSelectedWorkflow(null);
-    }
-  };
-
   // Clear the selected workflow when unmounting
   useEffect(() => {
     return () => {
@@ -28,7 +17,7 @@ const WorkflowPage = () => {
     };
   }, [setSelectedWorkflow]);
 
-  // Add this style tag to fix css issues (temporary solution until we can update global.css)
+  // Add this style tag to fix css issues
   useEffect(() => {
     // Add additional styles for the workflow page
     const styleElement = document.createElement('style');
@@ -73,9 +62,49 @@ const WorkflowPage = () => {
       
       /* Make canvas truly "infinite" */
       .bg-grid-pattern {
+        background-image: linear-gradient(to right, #e8eaed 1px, transparent 1px), 
+                          linear-gradient(to bottom, #e8eaed 1px, transparent 1px);
+        background-size: 20px 20px !important;
         min-width: 8000px !important;
         min-height: 8000px !important;
-        background-size: 20px 20px !important;
+      }
+      
+      /* Fix for Safari overflow issues */
+      .infinite-canvas {
+        transform-origin: center center;
+      }
+      
+      /* Fix for node dragging */
+      .node-header {
+        cursor: move !important;
+      }
+      
+      /* Improved visibility during drag */
+      .canvas-drag-mode {
+        cursor: grabbing !important;
+      }
+      
+      /* Connection success animation */
+      .connection-success {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.6) !important;
+        animation: success-pulse 0.5s ease-out !important;
+      }
+      
+      @keyframes success-pulse {
+        0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: translate(-50%, -50%) scale(1.5); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+      }
+      
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.5;
+          transform: scale(1.2);
+        }
       }
     `;
     
@@ -88,23 +117,25 @@ const WorkflowPage = () => {
   }, []);
 
   return (
-    <WorkflowContextProvider>
-      <div className="flex h-full flex-col">
-        
-        <div className="flex flex-1 overflow-hidden">
-          {/* Node Palette */}
-          <NodePalette workflows={workflows} />
-          
-          {/* Canvas with improved wrapper */}
-          <div className="flex-1 relative overflow-hidden canvas-container">
-            <Canvas />
+    // Add DndProvider here to ensure it's properly scoped to the Workflow page
+    <DndProvider backend={HTML5Backend}>
+      <WorkflowContextProvider>
+        <div className="flex h-full flex-col">
+          <div className="flex flex-1 overflow-hidden">
+            {/* Node Palette */}
+            <NodePalette workflows={workflows} />
+            
+            {/* Canvas with improved wrapper */}
+            <div className="flex-1 relative overflow-hidden canvas-container">
+              <Canvas />
+            </div>
           </div>
+          
+          {/* Footer Controls */}
+          <WorkflowControls />
         </div>
-        
-        {/* Footer Controls */}
-        <WorkflowControls />
-      </div>
-    </WorkflowContextProvider>
+      </WorkflowContextProvider>
+    </DndProvider>
   );
 };
 

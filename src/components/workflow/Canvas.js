@@ -33,7 +33,7 @@ const Canvas = () => {
   // Track fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Set up React DnD drop target with better handling
+  // Set up React DnD drop target
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'WORKFLOW_NODE',
     drop: (item, monitor) => {
@@ -58,14 +58,14 @@ const Canvas = () => {
       isOver: !!monitor.isOver(),
       canDrop: !!monitor.canDrop()
     })
-  }), [addNewNode, zoomLevelRef, panOffsetRef]);
+  }), [addNewNode]);
 
-  // Add event listeners for the canvas with throttled mouse move
+  // Add event listeners for the canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Define a throttled mousemove handler to improve performance
+    // Define a throttled mousemove handler
     let lastMoveTime = 0;
     const throttleMs = 16; // ~60fps
     
@@ -86,7 +86,7 @@ const Canvas = () => {
     };
   }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
 
-  // Modified scroll to newly created node without changing the zoom
+  // Scroll to newly created node
   useEffect(() => {
     if (lastCreatedNodeId && nodes.length > 0 && canvasRef.current) {
       const newNode = nodes.find(n => n.id === lastCreatedNodeId);
@@ -118,28 +118,21 @@ const Canvas = () => {
       
       zoomLevelRef.current = newZoom;
       
-      // Apply transform with both zoom and pan
-      applyTransform(newZoom, panOffsetRef.current);
+      // Apply transform
+      canvasContainerRef.current.style.transform = `scale(${newZoom}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
     }
   }, []);
   
-  // Helper function to apply transform
-  const applyTransform = (zoom, pan) => {
-    if (canvasContainerRef.current) {
-      canvasContainerRef.current.style.transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`;
-    }
-  };
-
   // Function to reset zoom and pan
   const resetZoomAndPan = useCallback(() => {
     if (canvasContainerRef.current) {
       zoomLevelRef.current = 1;
       panOffsetRef.current = { x: 0, y: 0 };
-      applyTransform(1, { x: 0, y: 0 });
+      canvasContainerRef.current.style.transform = 'scale(1) translate(0px, 0px)';
     }
   }, []);
   
-  // Add a new function to zoom to fit all nodes
+  // Function to zoom to fit all nodes
   const zoomToFitAll = useCallback(() => {
     if (!canvasRef.current || nodes.length === 0) return;
     
@@ -194,11 +187,11 @@ const Canvas = () => {
     if (canvasContainerRef.current) {
       canvasContainerRef.current.style.transform = `scale(${scale}) translate(${newPanX}px, ${newPanY}px)`;
     }
-  }, [nodes, canvasRef, canvasContainerRef]);
+  }, [nodes, canvasRef]);
   
-  // Handle canvas panning - use middle mouse button or Ctrl+drag
+  // Handle canvas panning with middle mouse button or Ctrl+drag
   const handleCanvasMouseDown = useCallback((e) => {
-    // Only initiate panning with middle mouse button (button 1) or Ctrl+left click
+    // Only initiate panning with middle mouse button or Ctrl+left click
     if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
       e.preventDefault();
       setIsPanning(true);
@@ -228,7 +221,7 @@ const Canvas = () => {
       };
       
       panOffsetRef.current = newPanOffset;
-      applyTransform(zoomLevelRef.current, newPanOffset);
+      canvasContainerRef.current.style.transform = `scale(${zoomLevelRef.current}) translate(${newPanOffset.x}px, ${newPanOffset.y}px)`;
       setPanStart({ x: e.clientX, y: e.clientY });
     };
     
@@ -253,7 +246,7 @@ const Canvas = () => {
     };
   }, [isPanning, panStart]);
   
-  // Handle mousewheel for zooming - throttled for better performance
+  // Handle mousewheel for zooming
   const handleWheel = useCallback((e) => {
     if (e.ctrlKey) {
       e.preventDefault();
@@ -273,7 +266,7 @@ const Canvas = () => {
     }
   }, [handleZoom]);
 
-  // Add useEffect for wheel event (using passive: false)
+  // Add useEffect for wheel event
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -295,13 +288,13 @@ const Canvas = () => {
     const x = (e.clientX - rect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current - panOffsetRef.current.x;
     const y = (e.clientY - rect.top + canvasRef.current.scrollTop) / zoomLevelRef.current - panOffsetRef.current.y;
     
-    // Create context menu with improved styling and simplified options
+    // Create context menu
     const menu = document.createElement('div');
     menu.className = 'absolute bg-white shadow-md rounded-md z-50 overflow-hidden';
     menu.style.left = `${e.clientX}px`;
     menu.style.top = `${e.clientY}px`;
     
-    // Add menu options with clear visual design
+    // Add menu options
     const options = [
       { label: 'Add Prompt Node', type: 'prompt', color: 'bg-blue-50 hover:bg-blue-100' },
       { label: 'Add Action Node', type: 'action', color: 'bg-purple-50 hover:bg-purple-100' },
@@ -337,11 +330,11 @@ const Canvas = () => {
     }, 100);
   }, [addNewNode]);
 
-  // FULLSCREEN FUNCTIONALITY - ENHANCED AND FIXED
+  // Fullscreen functionality
   const handleFullscreen = useCallback(() => {
     if (!canvasRef.current) return;
     
-    const element = canvasRef.current.parentElement; // Use the parent div instead of just the canvas
+    const element = canvasRef.current.parentElement; // Use the parent div
     
     if (!document.fullscreenElement && 
         !document.mozFullScreenElement &&
@@ -396,7 +389,7 @@ const Canvas = () => {
       
       setIsFullscreen(isCurrentlyFullscreen);
       
-      // Add class to the canvas container for specific fullscreen styling if needed
+      // Add class to the canvas container for specific fullscreen styling
       if (canvasRef.current && canvasRef.current.parentElement) {
         if (isCurrentlyFullscreen) {
           canvasRef.current.parentElement.classList.add('canvas-fullscreen');
@@ -468,7 +461,6 @@ const Canvas = () => {
         } ${isFullscreen ? 'fullscreen-enabled' : ''}`}
         onContextMenu={handleContextMenu}
         onMouseDown={handleCanvasMouseDown}
-        onWheel={handleWheel}
       >
         {/* Transformable content container */}
         <div 
@@ -552,7 +544,7 @@ const Canvas = () => {
               );
             })}
             
-            {/* Active Connection Being Drawn - Enhanced for immediate visual feedback */}
+            {/* Active Connection Being Drawn */}
             {isDrawingConnection && connectionStart && (
               <>
                 {/* Draw the connection line in real-time */}
@@ -668,7 +660,7 @@ const Canvas = () => {
         <p>Right-click: Add node</p>
         <p>Ctrl+Drag: Pan canvas</p>
         <p>Ctrl+Wheel: Zoom</p>
-        <p>Drag from left panel: Add node</p>
+        <p>Drag from output → input: Connect nodes</p>
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ const WorkflowNode = ({ node }) => {
     setContentValue(node.content);
   }, [node.title, node.content]);
 
-  // Set up React DnD for the node itself (for dropping from palette)
+  // Set up React DnD for the node itself
   const [{ isDragging }, drag] = useDrag({
     type: 'WORKFLOW_NODE',
     item: { id: node.id, type: node.type },
@@ -119,7 +119,7 @@ const WorkflowNode = ({ node }) => {
     deleteNode(node.id);
   };
 
-  // Add this to make sure node is focused when moved
+  // Make sure node is focused when moved
   useEffect(() => {
     const handleWindowMouseDown = (e) => {
       if (nodeRef.current && !nodeRef.current.contains(e.target)) {
@@ -245,7 +245,7 @@ const WorkflowNode = ({ node }) => {
         {node.type.charAt(0).toUpperCase() + node.type.slice(1)} Node
       </div>
       
-      {/* Input Connection Handle with improved interaction */}
+      {/* Input Connection Handle */}
       <div 
         ref={inputHandleRef}
         className={`absolute w-6 h-6 rounded-full bg-gray-400 cursor-crosshair left-0 top-1/2 transform -translate-x-1/2 -translate-y-1/2
@@ -261,7 +261,7 @@ const WorkflowNode = ({ node }) => {
         <div className="w-3 h-3 bg-white rounded-full"></div>
       </div>
       
-      {/* Output Connection Handle with improved interaction */}
+      {/* Output Connection Handle */}
       <div 
         ref={outputHandleRef}
         className={`absolute w-6 h-6 rounded-full ${getHandleColorClass()} cursor-crosshair right-0 top-1/2 transform translate-x-1/2 -translate-y-1/2
