@@ -1,4 +1,6 @@
 // src/components/workflow/Canvas.js
+// Modified version with improved connection handling
+
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import ReactFlow, {
   Background,
@@ -10,6 +12,7 @@ import ReactFlow, {
   useReactFlow,
   Panel,
   MarkerType,
+  addEdge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useWorkflowContext } from '../../context/WorkflowContext';
@@ -49,12 +52,21 @@ const Canvas = () => {
     deleteNode,
     duplicateNode,
     deleteConnection,
+    createConnection,  // Make sure this is provided by the context
     handleNodeTextChange,
     handleNodeTitleChange,
     clearCanvas,
+    canvasRef,
   } = useWorkflowContext();
   
   const reactFlowWrapper = useRef(null);
+
+  // Update the canvasRef from context
+  useEffect(() => {
+    if (canvasRef && canvasRef.current !== reactFlowWrapper.current) {
+      canvasRef.current = reactFlowWrapper.current;
+    }
+  }, [canvasRef]);
 
   // Convert WorkflowContext nodes to ReactFlow format
   useEffect(() => {
@@ -83,6 +95,8 @@ const Canvas = () => {
   // Convert WorkflowContext connections to ReactFlow edges
   useEffect(() => {
     if (contextConnections.length > 0) {
+      console.log('Updating edges from context connections:', contextConnections);
+      
       const flowEdges = contextConnections.map(connection => {
         // Find source node type to set proper styling
         const sourceNode = contextNodes.find(n => n.id === connection.source);
@@ -123,35 +137,57 @@ const Canvas = () => {
     setSelectedElements(nodes.length || edges.length ? { nodes, edges } : null);
   }, []);
 
-  // Handle connection creation
+  // Handle connection creation - FIXED VERSION
   const onConnect = useCallback((params) => {
-    // Generate a unique connection ID
-    const newConnectionId = `conn-${params.source}-${params.target}-${Date.now()}`;
+    console.log('Connection params:', params);
     
-    // Check if connection already exists to prevent duplicates
+    if (!params.source || !params.target) {
+      console.warn('Invalid connection params:', params);
+      return;
+    }
+    
+    // Check if connection already exists
     const isDuplicate = contextConnections.some(conn => 
       conn.source === params.source && conn.target === params.target
     );
     
-    if (!isDuplicate) {
-      // Add the new connection to the WorkflowContext
+    if (isDuplicate) {
+      console.warn('Connection already exists');
+      return;
+    }
+    
+    // Create the connection in the context
+    if (createConnection) {
+      createConnection(params.source, params.target);
+    } else {
+      console.error('createConnection function not available in context');
+      
+      // Fallback: Update both ReactFlow edges and context connections
+      const newConnectionId = `conn-${params.source}-${params.target}-${Date.now()}`;
       const newConnection = {
         id: newConnectionId,
         source: params.source,
         target: params.target
       };
       
-      // Update context connections
-      const updatedConnections = [...contextConnections, newConnection];
-      
-      // This will trigger the useEffect that updates edges
-      // No need to directly set edges here
+      // Update ReactFlow edges directly
+      setEdges(eds => addEdge({
+        ...params,
+        id: newConnectionId,
+        type: 'smoothstep',
+        animated: false,
+      }, eds));
     }
-  }, [contextConnections]);
+  }, [contextConnections, createConnection, setEdges]);
 
   // Handle dropping node on canvas
   const onDrop = useCallback((event) => {
     event.preventDefault();
+    
+    // Remove visual feedback
+    if (reactFlowWrapper.current) {
+      reactFlowWrapper.current.classList.remove('dragging-over-canvas');
+    }
     
     if (!reactFlowInstance || !reactFlowWrapper.current) return;
     
@@ -159,12 +195,18 @@ const Canvas = () => {
     const type = event.dataTransfer.getData('application/reactflow');
     
     // Check if the dropped element is valid
-    if (typeof type === 'undefined' || !type) return;
+    if (typeof type === 'undefined' || !type) {
+      console.warn('Invalid drop data - no node type found');
+      return;
+    }
     
+    // Calculate position relative to the canvas
     const position = reactFlowInstance.project({
       x: event.clientX - reactFlowBounds.left,
       y: event.clientY - reactFlowBounds.top,
     });
+    
+    console.log('Dropping node of type:', type, 'at position:', position);
     
     // Add new node via the context
     addNewNode(type, position);
@@ -174,7 +216,31 @@ const Canvas = () => {
   const onDragOver = useCallback((event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    
+    // Add visual feedback
+    if (reactFlowWrapper.current) {
+      reactFlowWrapper.current.classList.add('dragging-over-canvas');
+    }
   }, []);
+
+  // Handle leave dragging
+  const onDragLeave = useCallback((event) => {
+    // Remove visual feedback
+    if (reactFlowWrapper.current) {
+      reactFlowWrapper.current.classList.remove('dragging-over-canvas');
+    }
+  }, []);
+
+  // Initialize ReactFlow instance
+  const onInit = useCallback((instance) => {
+    setReactFlowInstance(instance);
+    console.log('ReactFlow initialized');
+    
+    // Wait a bit and then fit the view
+    setTimeout(() => {
+      instance.fitView(getFitViewOptions(nodes));
+    }, 200);
+  }, [nodes]);
 
   // Handle fitting view (auto-center and zoom to show all nodes)
   const onFitView = useCallback(() => {
@@ -213,8 +279,6 @@ const Canvas = () => {
         event.preventDefault();
         onFitView();
       }
-      
-      // Ctrl+C, Ctrl+V for copy/paste (would require more implementation)
     };
     
     window.addEventListener('keydown', keyHandler);
@@ -222,7 +286,7 @@ const Canvas = () => {
   }, [selectedElements, onDeleteSelected, onFitView]);
 
   return (
-    <div ref={reactFlowWrapper} className="flex-1 h-full">
+    <div ref={reactFlowWrapper} className="flex-1 h-full reactflow-wrapper">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -230,10 +294,18 @@ const Canvas = () => {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
-        onInit={setReactFlowInstance}
+        onInit={onInit}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: false,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+          },
+        }}
         fitView
         fitViewOptions={getFitViewOptions(nodes)}
         deleteKeyCode="Delete"

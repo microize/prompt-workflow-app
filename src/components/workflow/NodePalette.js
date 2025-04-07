@@ -1,19 +1,25 @@
 // src/components/workflow/NodePalette.js
 import React, { useState, memo, useCallback } from 'react';
-import { Sparkles, ArrowRight, GitBranch, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
-import { useDrag } from 'react-dnd';
-import { useWorkflowContext } from '../../context/WorkflowContext';
+import { Sparkles, ArrowRight, GitBranch, Search, X, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import Badge from '../common/Badge';
+import { useWorkflowContext } from '../../context/WorkflowContext';
 
-// Create a memoized draggable component to prevent unnecessary re-renders
+// Create a memoized draggable node component
 const DraggableNodeItem = memo(({ nodeType, icon, title, description }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: 'WORKFLOW_NODE',
-    item: { nodeType },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging()
-    })
-  }));
+  const { addNewNode } = useWorkflowContext();
+  
+  // Handle starting the drag
+  const handleDragStart = (e) => {
+    e.dataTransfer.setData('application/reactflow', nodeType);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  
+  // Fallback method - direct add button
+  const handleAddClick = (e) => {
+    e.stopPropagation();
+    // Add node in default position
+    addNewNode(nodeType);
+  };
 
   // Determine color classes based on node type
   const getColorClasses = () => {
@@ -31,17 +37,25 @@ const DraggableNodeItem = memo(({ nodeType, icon, title, description }) => {
 
   return (
     <div
-      ref={drag}
-      className={`${getColorClasses()} border p-3 rounded-lg cursor-move flex items-center gap-2 ${
-        isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md hover:border-primary-200'
-      } transition-all duration-200`}
+      draggable
+      onDragStart={handleDragStart}
+      className={`${getColorClasses()} border p-3 rounded-lg cursor-move flex items-center gap-2 hover:shadow-md hover:border-primary-200 transition-all duration-200 group`}
       data-node-type={nodeType}
     >
       {icon}
-      <div>
+      <div className="flex-grow">
         <p className="font-medium text-sm">{title}</p>
         <p className="text-xs text-neutral-500">{description}</p>
       </div>
+      
+      {/* Fallback "Add" button that appears on hover */}
+      <button 
+        onClick={handleAddClick}
+        className="text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-primary-100"
+        title={`Add ${title}`}
+      >
+        <Plus size={16} />
+      </button>
     </div>
   );
 });
@@ -65,7 +79,7 @@ const TemplateItem = memo(({ workflow, onShowDetails }) => {
   );
 });
 
-// Main NodePalette component with optimizations
+// Main NodePalette component 
 const NodePalette = ({ workflows = [] }) => {
   const { addNewNode, canvasRef, optimizeWorkflowLayout } = useWorkflowContext();
   const [searchTerm, setSearchTerm] = useState('');

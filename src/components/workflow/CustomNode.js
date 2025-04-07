@@ -1,4 +1,6 @@
 // src/components/workflow/CustomNode.js
+// Update the Handle implementation
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 import { Move, X, Copy, Edit, Check } from 'lucide-react';
@@ -98,13 +100,13 @@ const CustomNode = ({ id, data, isConnectable, selected }) => {
         selected ? 'ring-2 ring-primary-500' : ''
       } rounded-lg w-[220px]`}
     >
-      {/* Input handle */}
+      {/* Input handle - target for connections */}
       <Handle
         type="target"
         position={Position.Left}
-        className={`w-4 h-4 rounded-full border-2 border-white !bg-gray-400 cursor-crosshair -left-[8px] top-1/2`}
+        className={`w-4 h-4 rounded-full border-2 border-white bg-gray-400 cursor-crosshair -left-[8px] top-1/2 react-flow__handle-left`}
         isConnectable={isConnectable}
-        id="input"
+        id="target"
         style={{ zIndex: 20 }}
       />
       
@@ -174,13 +176,13 @@ const CustomNode = ({ id, data, isConnectable, selected }) => {
         {data.type.charAt(0).toUpperCase() + data.type.slice(1)} Node
       </div>
       
-      {/* Output handle */}
+      {/* Output handle - source for connections */}
       <Handle
         type="source"
         position={Position.Right}
-        className={`w-4 h-4 rounded-full border-2 border-white cursor-crosshair -right-[8px] top-1/2 ${getHandleColorClass()}`}
+        className={`w-4 h-4 rounded-full border-2 border-white cursor-crosshair -right-[8px] top-1/2 react-flow__handle-right ${getHandleColorClass()}`}
         isConnectable={isConnectable}
-        id="output"
+        id="source"
         style={{ zIndex: 20 }}
       />
     </div>

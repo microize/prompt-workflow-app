@@ -1,17 +1,12 @@
 // src/pages/WorkflowPage.js
 import React, { useEffect } from 'react';
-import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { DndProvider } from 'react-dnd';
 import { useAppContext } from '../context/AppContext';
 import { WorkflowContextProvider } from '../context/WorkflowContext';
 import NodePalette from '../components/workflow/NodePalette';
 import Canvas from '../components/workflow/Canvas';
 import WorkflowControls from '../components/workflow/WorkflowControls';
-
-// We need to add a package.json entry for react-flow-renderer
-// "react-flow-renderer": "^10.3.16"
-// or the newer package name:
-// "reactflow": "^11.7.0"
 
 const WorkflowPage = () => {
   const { workflows, selectedWorkflow, setSelectedWorkflow } = useAppContext();
@@ -71,7 +66,7 @@ const WorkflowPage = () => {
             <NodePalette workflows={workflows} />
             
             {/* Canvas with improved performance */}
-            <div className="flex-1 relative overflow-hidden canvas-container">
+            <div className="flex-1 relative overflow-hidden canvas-container" id="workflow-canvas-container">
               <Canvas />
             </div>
           </div>
