@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useDrop } from 'react-dnd';
-import { GitBranch, Plus, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { GitBranch, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import WorkflowNode from './WorkflowNode';
 
@@ -30,8 +30,6 @@ const Canvas = () => {
   // Pan state for drag-to-pan functionality
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  // Track fullscreen state
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Set up React DnD drop target
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
@@ -132,114 +130,37 @@ const Canvas = () => {
     }
   }, []);
   
-  // Function to zoom to fit all nodes
-  const zoomToFitAll = useCallback(() => {
-    if (!canvasRef.current || nodes.length === 0) return;
-    
-    // Find the bounding box of all nodes
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    
-    nodes.forEach(node => {
-      const x = node.position.x;
-      const y = node.position.y;
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + 200); // Assume node width is 200px
-      maxY = Math.max(maxY, y + 120); // Assume node height is 120px
-    });
-    
-    // Add padding
-    const padding = 100;
-    minX -= padding;
-    minY -= padding;
-    maxX += padding;
-    maxY += padding;
-    
-    // Calculate required scale to fit all nodes
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const containerWidth = canvasRect.width;
-    const containerHeight = canvasRect.height;
-    
-    const contentWidth = maxX - minX;
-    const contentHeight = maxY - minY;
-    
-    const scaleX = containerWidth / contentWidth;
-    const scaleY = containerHeight / contentHeight;
-    const scale = Math.min(scaleX, scaleY, 1); // Don't zoom in more than 100%
-    
-    // Calculate center of the bounding box
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    
-    // Set new zoom level
-    zoomLevelRef.current = scale;
-    
-    // Calculate new pan offset to center the content
-    const newPanX = (containerWidth / 2 / scale) - centerX;
-    const newPanY = (containerHeight / 2 / scale) - centerY;
-    
-    panOffsetRef.current = { x: newPanX, y: newPanY };
-    
-    // Apply transform
-    if (canvasContainerRef.current) {
-      canvasContainerRef.current.style.transform = `scale(${scale}) translate(${newPanX}px, ${newPanY}px)`;
-    }
-  }, [nodes, canvasRef]);
-  
-  // Handle canvas panning with middle mouse button or Ctrl+drag
+  // Handle canvas panning with left mouse button
   const handleCanvasMouseDown = useCallback((e) => {
-    // Only initiate panning with middle mouse button or Ctrl+left click
-    if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
+    if (e.button === 0) { // Left mouse button
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
-      
-      // Change cursor during panning
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = 'grabbing';
-        canvasRef.current.classList.add('canvas-drag-mode');
-      }
     }
   }, []);
   
-  // Effect for handling pan move and end
   useEffect(() => {
     if (!isPanning) return;
-    
+  
     const handlePanMove = (e) => {
-      if (!isPanning || !canvasContainerRef.current) return;
-      
-      const dx = (e.clientX - panStart.x) / zoomLevelRef.current;
-      const dy = (e.clientY - panStart.y) / zoomLevelRef.current;
-      
-      const newPanOffset = {
-        x: panOffsetRef.current.x + dx,
-        y: panOffsetRef.current.y + dy
-      };
-      
-      panOffsetRef.current = newPanOffset;
-      canvasContainerRef.current.style.transform = `scale(${zoomLevelRef.current}) translate(${newPanOffset.x}px, ${newPanOffset.y}px)`;
+      if (!isPanning || !canvasRef.current) return;
+  
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+  
+      canvasRef.current.scrollLeft -= dx;
+      canvasRef.current.scrollTop -= dy;
+  
       setPanStart({ x: e.clientX, y: e.clientY });
     };
-    
+  
     const handlePanEnd = () => {
       setIsPanning(false);
-      
-      // Reset cursor
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = '';
-        canvasRef.current.classList.remove('canvas-drag-mode');
-      }
     };
-    
-    // Add event listeners for panning
+  
     document.addEventListener('mousemove', handlePanMove);
     document.addEventListener('mouseup', handlePanEnd);
-    
-    // Clean up
+  
     return () => {
       document.removeEventListener('mousemove', handlePanMove);
       document.removeEventListener('mouseup', handlePanEnd);
@@ -330,90 +251,6 @@ const Canvas = () => {
     }, 100);
   }, [addNewNode]);
 
-  // Fullscreen functionality
-  const handleFullscreen = useCallback(() => {
-    if (!canvasRef.current) return;
-    
-    const element = canvasRef.current.parentElement; // Use the parent div
-    
-    if (!document.fullscreenElement && 
-        !document.mozFullScreenElement &&
-        !document.webkitFullscreenElement &&
-        !document.msFullscreenElement) {
-      // If not in fullscreen mode, enter fullscreen
-      if (element.requestFullscreen) {
-        element.requestFullscreen().then(() => {
-          setIsFullscreen(true);
-        }).catch(err => {
-          console.error(`Error attempting to enable fullscreen: ${err.message}`);
-        });
-      } else if (element.mozRequestFullScreen) { // Firefox
-        element.mozRequestFullScreen();
-        setIsFullscreen(true);
-      } else if (element.webkitRequestFullscreen) { // Chrome, Safari, Opera
-        element.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-        setIsFullscreen(true);
-      } else if (element.msRequestFullscreen) { // IE/Edge
-        element.msRequestFullscreen();
-        setIsFullscreen(true);
-      }
-    } else {
-      // If already in fullscreen mode, exit fullscreen
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
-          setIsFullscreen(false);
-        }).catch(err => {
-          console.error(`Error attempting to exit fullscreen: ${err.message}`);
-        });
-      } else if (document.mozCancelFullScreen) { // Firefox
-        document.mozCancelFullScreen();
-        setIsFullscreen(false);
-      } else if (document.webkitExitFullscreen) { // Chrome, Safari, Opera
-        document.webkitExitFullscreen();
-        setIsFullscreen(false);
-      } else if (document.msExitFullscreen) { // IE/Edge
-        document.msExitFullscreen();
-        setIsFullscreen(false);
-      }
-    }
-  }, [canvasRef]);
-
-  // Listen for fullscreen change events
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = 
-        !!document.fullscreenElement || 
-        !!document.mozFullScreenElement || 
-        !!document.webkitFullscreenElement || 
-        !!document.msFullscreenElement;
-      
-      setIsFullscreen(isCurrentlyFullscreen);
-      
-      // Add class to the canvas container for specific fullscreen styling
-      if (canvasRef.current && canvasRef.current.parentElement) {
-        if (isCurrentlyFullscreen) {
-          canvasRef.current.parentElement.classList.add('canvas-fullscreen');
-        } else {
-          canvasRef.current.parentElement.classList.remove('canvas-fullscreen');
-        }
-      }
-    };
-    
-    // Add event listeners for all browser variants
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    
-    return () => {
-      // Clean up event listeners
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, [canvasRef]);
-
   return (
     <div className="flex-1 relative overflow-hidden bg-neutral-50">
       {/* Zoom controls */}
@@ -432,20 +269,6 @@ const Canvas = () => {
         >
           <ZoomOut size={18} />
         </button>
-        <button 
-          onClick={zoomToFitAll}
-          className="p-1 hover:bg-gray-100 rounded-md fit-all-btn"
-          title="Fit All Nodes"
-        >
-          <Maximize size={18} />
-        </button>
-        <button 
-          onClick={handleFullscreen}
-          className="p-1 hover:bg-gray-100 rounded-md"
-          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-        >
-          <Maximize size={18} />
-        </button>
       </div>
       
       <div 
@@ -458,18 +281,17 @@ const Canvas = () => {
         }}
         className={`w-full h-full overflow-auto relative ${
           isOver && canDrop ? 'bg-blue-50 bg-opacity-30' : ''
-        } ${isFullscreen ? 'fullscreen-enabled' : ''}`}
+        }`}
         onContextMenu={handleContextMenu}
         onMouseDown={handleCanvasMouseDown}
       >
         {/* Transformable content container */}
         <div 
           ref={canvasContainerRef}
-          className="min-w-full min-h-full origin-center relative transition-transform duration-100 infinite-canvas"
+          className="relative"
           style={{ 
-            width: '8000px', 
-            height: '8000px',
-            transform: `scale(${zoomLevelRef.current}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`
+            width: '5000px', // Set a large width for horizontal scrolling
+            height: '2000px', // Set a large height for vertical scrolling
           }}
         >
           {/* Grid Background */}
