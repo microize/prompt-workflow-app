@@ -1,473 +1,341 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useDrop } from 'react-dnd';
-import { GitBranch, Plus, ZoomIn, ZoomOut } from 'lucide-react';
+// src/components/workflow/Canvas.js
+import React, { useCallback, useRef, useState, useEffect } from 'react';
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+  Panel,
+  MarkerType,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { useWorkflowContext } from '../../context/WorkflowContext';
-import WorkflowNode from './WorkflowNode';
+import CustomNode from './CustomNode';
+import { shallow } from 'zustand/shallow';
+import { ZoomIn, ZoomOut, Maximize, Search, Save } from 'lucide-react';
 
+// Node types for the workflow canvas
+const nodeTypes = {
+  promptNode: CustomNode,
+  actionNode: CustomNode,
+  conditionNode: CustomNode,
+};
+
+// Edge types with different styles
+const getFitViewOptions = (nodes) => ({
+  padding: 0.2,
+  includeHiddenNodes: false,
+  minZoom: 0.5,
+  maxZoom: 2,
+});
+
+// Main Canvas Component
 const Canvas = () => {
+  // Set up state for nodes and edges (connections)
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [selectedElements, setSelectedElements] = useState(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const { fitView } = useReactFlow();
+  
+  // Get context values from WorkflowContext
   const {
-    nodes,
-    connections,
-    isDrawingConnection,
-    connectionStart,
-    connectionEnd,
-    potentialTarget,
-    canvasRef,
-    handleCanvasMouseMove,
-    handleCanvasMouseUp,
+    nodes: contextNodes,
+    connections: contextConnections,
     addNewNode,
+    deleteNode,
+    duplicateNode,
     deleteConnection,
-    lastCreatedNodeId
+    handleNodeTextChange,
+    handleNodeTitleChange,
+    clearCanvas,
   } = useWorkflowContext();
-
-  // Ref for tracking the current zoom level
-  const zoomLevelRef = useRef(1);
-  // Ref for tracking pan offset
-  const panOffsetRef = useRef({ x: 0, y: 0 });
-  // Ref for the canvas container to apply transforms
-  const canvasContainerRef = useRef(null);
   
-  // Pan state for drag-to-pan functionality
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const reactFlowWrapper = useRef(null);
 
-  // Set up React DnD drop target
-  const [{ isOver, canDrop }, drop] = useDrop(() => ({
-    accept: 'WORKFLOW_NODE',
-    drop: (item, monitor) => {
-      if (!canvasRef.current) return;
-      
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const dropOffset = monitor.getClientOffset();
-      
-      // If there's no offset, exit early
-      if (!dropOffset) return { moved: false };
-      
-      // Calculate position considering scroll, zoom, and pan
-      const x = (dropOffset.x - canvasRect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current - panOffsetRef.current.x;
-      const y = (dropOffset.y - canvasRect.top + canvasRef.current.scrollTop) / zoomLevelRef.current - panOffsetRef.current.y;
-      
-      // Add node at the drop position
-      const nodeType = item.nodeType || item.type;
-      addNewNode(nodeType, { x, y });
-      return { moved: true };
-    },
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-      canDrop: !!monitor.canDrop()
-    })
-  }), [addNewNode]);
-
-  // Add event listeners for the canvas
+  // Convert WorkflowContext nodes to ReactFlow format
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (contextNodes.length > 0) {
+      const flowNodes = contextNodes.map(node => ({
+        id: node.id,
+        type: `${node.type}Node`, // Map to our custom node types
+        position: node.position,
+        data: {
+          title: node.title,
+          content: node.content,
+          type: node.type,
+          onTitleChange: (id, title) => handleNodeTitleChange(id, title),
+          onContentChange: (id, content) => handleNodeTextChange(id, content),
+          onDuplicate: (id) => duplicateNode(id),
+          onDelete: (id) => deleteNode(id),
+        },
+      }));
+      
+      setNodes(flowNodes);
+    } else {
+      setNodes([]);
+    }
+  }, [contextNodes, handleNodeTextChange, handleNodeTitleChange, duplicateNode, deleteNode]);
 
-    // Define a throttled mousemove handler
-    let lastMoveTime = 0;
-    const throttleMs = 16; // ~60fps
-    
-    const throttledMouseMove = (e) => {
-      const now = Date.now();
-      if (now - lastMoveTime >= throttleMs) {
-        handleCanvasMouseMove(e);
-        lastMoveTime = now;
-      }
-    };
-
-    canvas.addEventListener('mousemove', throttledMouseMove);
-    canvas.addEventListener('mouseup', handleCanvasMouseUp);
-
-    return () => {
-      canvas.removeEventListener('mousemove', throttledMouseMove);
-      canvas.removeEventListener('mouseup', handleCanvasMouseUp);
-    };
-  }, [canvasRef, handleCanvasMouseMove, handleCanvasMouseUp]);
-
-  // Scroll to newly created node
+  // Convert WorkflowContext connections to ReactFlow edges
   useEffect(() => {
-    if (lastCreatedNodeId && nodes.length > 0 && canvasRef.current) {
-      const newNode = nodes.find(n => n.id === lastCreatedNodeId);
-      if (newNode) {
-        // Scroll to node without changing zoom
-        const canvasRect = canvasRef.current.getBoundingClientRect();
-        const nodeX = newNode.position.x * zoomLevelRef.current + panOffsetRef.current.x;
-        const nodeY = newNode.position.y * zoomLevelRef.current + panOffsetRef.current.y;
+    if (contextConnections.length > 0) {
+      const flowEdges = contextConnections.map(connection => {
+        // Find source node type to set proper styling
+        const sourceNode = contextNodes.find(n => n.id === connection.source);
+        const edgeStyle = sourceNode ? sourceNode.type : 'default';
         
-        if (nodeX < 0 || nodeY < 0 || nodeX > canvasRect.width || nodeY > canvasRect.height) {
-          // Only scroll if the node is outside the visible area
-          canvasRef.current.scrollTo({
-            left: Math.max(0, newNode.position.x - canvasRect.width / 2 + 100),
-            top: Math.max(0, newNode.position.y - canvasRect.height / 2 + 60),
-            behavior: 'smooth'
-          });
-        }
-      }
-    }
-  }, [lastCreatedNodeId, nodes]);
-
-  // Function to handle zooming
-  const handleZoom = useCallback((zoomIn) => {
-    if (canvasContainerRef.current) {
-      // Calculate new zoom level with limits
-      const newZoom = zoomIn 
-        ? Math.min(zoomLevelRef.current + 0.1, 2) // Max zoom: 2x
-        : Math.max(zoomLevelRef.current - 0.1, 0.5); // Min zoom: 0.5x
+        return {
+          id: connection.id,
+          source: connection.source,
+          target: connection.target,
+          type: 'smoothstep',
+          animated: false,
+          style: { 
+            strokeWidth: 2,
+            stroke: edgeStyle === 'prompt' ? '#4285f4' : 
+                    edgeStyle === 'action' ? '#a142f4' : 
+                    edgeStyle === 'condition' ? '#fbbc04' : '#94a3b8'
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: edgeStyle === 'prompt' ? '#4285f4' : 
+                   edgeStyle === 'action' ? '#a142f4' : 
+                   edgeStyle === 'condition' ? '#fbbc04' : '#94a3b8',
+          },
+          data: {
+            onDelete: () => deleteConnection(connection.id),
+          }
+        };
+      });
       
-      zoomLevelRef.current = newZoom;
-      
-      // Apply transform
-      canvasContainerRef.current.style.transform = `scale(${newZoom}) translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`;
+      setEdges(flowEdges);
+    } else {
+      setEdges([]);
     }
-  }, []);
-  
-  // Function to reset zoom and pan
-  const resetZoomAndPan = useCallback(() => {
-    if (canvasContainerRef.current) {
-      zoomLevelRef.current = 1;
-      panOffsetRef.current = { x: 0, y: 0 };
-      canvasContainerRef.current.style.transform = 'scale(1) translate(0px, 0px)';
-    }
-  }, []);
-  
-  // Handle canvas panning with left mouse button
-  const handleCanvasMouseDown = useCallback((e) => {
-    if (e.button === 0) { // Left mouse button
-      e.preventDefault();
-      setIsPanning(true);
-      setPanStart({ x: e.clientX, y: e.clientY });
-    }
-  }, []);
-  
-  useEffect(() => {
-    if (!isPanning) return;
-  
-    const handlePanMove = (e) => {
-      if (!isPanning || !canvasRef.current) return;
-  
-      const dx = e.clientX - panStart.x;
-      const dy = e.clientY - panStart.y;
-  
-      canvasRef.current.scrollLeft -= dx;
-      canvasRef.current.scrollTop -= dy;
-  
-      setPanStart({ x: e.clientX, y: e.clientY });
-    };
-  
-    const handlePanEnd = () => {
-      setIsPanning(false);
-    };
-  
-    document.addEventListener('mousemove', handlePanMove);
-    document.addEventListener('mouseup', handlePanEnd);
-  
-    return () => {
-      document.removeEventListener('mousemove', handlePanMove);
-      document.removeEventListener('mouseup', handlePanEnd);
-    };
-  }, [isPanning, panStart]);
-  
-  // Handle mousewheel for zooming
-  const handleWheel = useCallback((e) => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      
-      // Simple throttle
-      if (!e.target.dataset.wheelThrottle) {
-        e.target.dataset.wheelThrottle = true;
-        
-        const zoomIn = e.deltaY < 0;
-        handleZoom(zoomIn);
-        
-        // Reset throttle after a short delay
-        setTimeout(() => {
-          e.target.dataset.wheelThrottle = false;
-        }, 50);
-      }
-    }
-  }, [handleZoom]);
+  }, [contextConnections, contextNodes, deleteConnection]);
 
-  // Add useEffect for wheel event
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // Use the non-passive listener to be able to preventDefault
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-    
-    return () => {
-      canvas.removeEventListener('wheel', handleWheel);
-    };
-  }, [handleWheel]);
+  // Handle node selection
+  const onSelectionChange = useCallback(({ nodes, edges }) => {
+    setSelectedElements(nodes.length || edges.length ? { nodes, edges } : null);
+  }, []);
 
-  // Handle right-click to add node at position
-  const handleContextMenu = useCallback((e) => {
-    e.preventDefault();
+  // Handle connection creation
+  const onConnect = useCallback((params) => {
+    // Generate a unique connection ID
+    const newConnectionId = `conn-${params.source}-${params.target}-${Date.now()}`;
     
-    // Get canvas coordinates, accounting for scroll, zoom, and pan
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left + canvasRef.current.scrollLeft) / zoomLevelRef.current - panOffsetRef.current.x;
-    const y = (e.clientY - rect.top + canvasRef.current.scrollTop) / zoomLevelRef.current - panOffsetRef.current.y;
+    // Check if connection already exists to prevent duplicates
+    const isDuplicate = contextConnections.some(conn => 
+      conn.source === params.source && conn.target === params.target
+    );
     
-    // Create context menu
-    const menu = document.createElement('div');
-    menu.className = 'absolute bg-white shadow-md rounded-md z-50 overflow-hidden';
-    menu.style.left = `${e.clientX}px`;
-    menu.style.top = `${e.clientY}px`;
-    
-    // Add menu options
-    const options = [
-      { label: 'Add Prompt Node', type: 'prompt', color: 'bg-blue-50 hover:bg-blue-100' },
-      { label: 'Add Action Node', type: 'action', color: 'bg-purple-50 hover:bg-purple-100' },
-      { label: 'Add Condition Node', type: 'condition', color: 'bg-amber-50 hover:bg-amber-100' }
-    ];
-    
-    options.forEach(option => {
-      const button = document.createElement('button');
-      button.className = `block w-full text-left px-4 py-2 ${option.color} text-sm transition-colors`;
-      button.innerText = option.label;
-      button.onclick = () => {
-        addNewNode(option.type, { x, y });
-        document.body.removeChild(menu);
+    if (!isDuplicate) {
+      // Add the new connection to the WorkflowContext
+      const newConnection = {
+        id: newConnectionId,
+        source: params.source,
+        target: params.target
       };
-      menu.appendChild(button);
+      
+      // Update context connections
+      const updatedConnections = [...contextConnections, newConnection];
+      
+      // This will trigger the useEffect that updates edges
+      // No need to directly set edges here
+    }
+  }, [contextConnections]);
+
+  // Handle dropping node on canvas
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    
+    if (!reactFlowInstance || !reactFlowWrapper.current) return;
+    
+    const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+    const type = event.dataTransfer.getData('application/reactflow');
+    
+    // Check if the dropped element is valid
+    if (typeof type === 'undefined' || !type) return;
+    
+    const position = reactFlowInstance.project({
+      x: event.clientX - reactFlowBounds.left,
+      y: event.clientY - reactFlowBounds.top,
     });
     
-    document.body.appendChild(menu);
+    // Add new node via the context
+    addNewNode(type, position);
+  }, [reactFlowInstance, addNewNode]);
+
+  // Setup drag over handler for the drop target
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  // Handle fitting view (auto-center and zoom to show all nodes)
+  const onFitView = useCallback(() => {
+    if (reactFlowInstance) {
+      reactFlowInstance.fitView(getFitViewOptions(nodes));
+    }
+  }, [reactFlowInstance, nodes]);
+
+  // Handle deleting selected elements
+  const onDeleteSelected = useCallback(() => {
+    if (!selectedElements) return;
     
-    // Handle click outside to close menu
-    const handleOutsideClick = (evt) => {
-      if (!menu.contains(evt.target)) {
-        if (document.body.contains(menu)) {
-          document.body.removeChild(menu);
-        }
-        document.removeEventListener('click', handleOutsideClick);
+    // Delete selected edges
+    selectedElements.edges.forEach(edge => {
+      deleteConnection(edge.id);
+    });
+    
+    // Delete selected nodes
+    selectedElements.nodes.forEach(node => {
+      deleteNode(node.id);
+    });
+    
+    setSelectedElements(null);
+  }, [selectedElements, deleteConnection, deleteNode]);
+
+  // Add keyboard shortcuts
+  useEffect(() => {
+    const keyHandler = (event) => {
+      // Delete key for selected elements
+      if (event.key === 'Delete' && selectedElements) {
+        onDeleteSelected();
       }
+      
+      // Ctrl+F to fit view
+      if (event.key === 'f' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        onFitView();
+      }
+      
+      // Ctrl+C, Ctrl+V for copy/paste (would require more implementation)
     };
     
-    // Delay adding the listener to prevent immediate closure
-    setTimeout(() => {
-      document.addEventListener('click', handleOutsideClick);
-    }, 100);
-  }, [addNewNode]);
+    window.addEventListener('keydown', keyHandler);
+    return () => window.removeEventListener('keydown', keyHandler);
+  }, [selectedElements, onDeleteSelected, onFitView]);
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-neutral-50">
-      {/* Zoom controls */}
-      <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-md p-2 flex flex-col space-y-2 zoom-controls">
-        <button 
-          onClick={() => handleZoom(true)}
-          className="p-1 hover:bg-gray-100 rounded-md" 
-          title="Zoom In"
-        >
-          <ZoomIn size={18} />
-        </button>
-        <button 
-          onClick={() => handleZoom(false)}
-          className="p-1 hover:bg-gray-100 rounded-md"
-          title="Zoom Out"
-        >
-          <ZoomOut size={18} />
-        </button>
-      </div>
-      
-      <div 
-        ref={(node) => {
-          // Combine React's ref with React DnD's drop ref
-          if (node) {
-            canvasRef.current = node;
-            drop(node);
-          }
-        }}
-        className={`w-full h-full overflow-auto relative ${
-          isOver && canDrop ? 'bg-blue-50 bg-opacity-30' : ''
-        }`}
-        onContextMenu={handleContextMenu}
-        onMouseDown={handleCanvasMouseDown}
+    <div ref={reactFlowWrapper} className="flex-1 h-full">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onSelectionChange={onSelectionChange}
+        onInit={setReactFlowInstance}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={getFitViewOptions(nodes)}
+        deleteKeyCode="Delete"
+        multiSelectionKeyCode="Control"
+        selectionKeyCode="Shift"
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        panOnScroll={true}
+        panOnDrag={true}
+        selectNodesOnDrag={false}
+        preventScrolling={true}
+        minZoom={0.1}
+        maxZoom={4}
+        snapToGrid={true}
+        snapGrid={[15, 15]}
+        className="bg-neutral-50"
       >
-        {/* Transformable content container */}
-        <div 
-          ref={canvasContainerRef}
-          className="relative"
-          style={{ 
-            width: '5000px', // Set a large width for horizontal scrolling
-            height: '2000px', // Set a large height for vertical scrolling
+        <Background 
+          color="#e8eaed" 
+          gap={20} 
+          size={1} 
+          variant="dots" 
+        />
+        <Controls 
+          position="bottom-right"
+          showInteractive={false}
+        />
+        <MiniMap 
+          nodeStrokeWidth={3}
+          nodeColor={(node) => {
+            switch (node.data.type) {
+              case 'prompt': return '#4285f4';
+              case 'action': return '#a142f4';
+              case 'condition': return '#fbbc04';
+              default: return '#94a3b8';
+            }
           }}
-        >
-          {/* Grid Background */}
-          <div className="absolute inset-0 bg-grid-pattern"></div>
-          
-          {/* Connection Lines */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-            {/* Existing Connections */}
-            {connections.map(connection => {
-              const sourceNode = nodes.find(n => n.id === connection.source);
-              const targetNode = nodes.find(n => n.id === connection.target);
-              
-              if (!sourceNode || !targetNode) return null;
-              
-              // Calculate the position of the connection points
-              const sourceX = sourceNode.position.x + 200; // Right side of source node
-              const sourceY = sourceNode.position.y + 60;  // Middle of node
-              const targetX = targetNode.position.x;       // Left side of target node
-              const targetY = targetNode.position.y + 60;  // Middle of node
-              
-              // Calculate the Bezier curve control points
-              const dx = Math.abs(targetX - sourceX);
-              const controlX1 = sourceX + dx * 0.25;
-              const controlY1 = sourceY;
-              const controlX2 = targetX - dx * 0.25;
-              const controlY2 = targetY;
-              
-              const pathD = `M${sourceX},${sourceY} C${controlX1},${controlY1} ${controlX2},${controlY2} ${targetX},${targetY}`;
-              
-              // Get the color based on node type
-              const getConnectionColor = () => {
-                switch (sourceNode.type) {
-                  case 'prompt': return '#4285f4';
-                  case 'action': return '#a142f4';
-                  case 'condition': return '#fbbc04';
-                  default: return '#94a3b8';
-                }
-              };
-              
-              return (
-                <g key={connection.id}>
-                  {/* Main visible connection line */}
-                  <path
-                    d={pathD}
-                    stroke={getConnectionColor()}
-                    strokeWidth="2"
-                    fill="none"
-                    className="connection-path pointer-events-auto transition-all duration-300"
-                  />
-                  
-                  {/* Arrow head */}
-                  <circle
-                    cx={targetX}
-                    cy={targetY}
-                    r="4"
-                    fill={getConnectionColor()}
-                  />
-                  
-                  {/* Invisible wider path for easier clicking/hovering */}
-                  <path
-                    d={pathD}
-                    stroke="transparent"
-                    strokeWidth="12"
-                    fill="none"
-                    className="pointer-events-auto cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteConnection(connection.id);
-                    }}
-                  />
-                </g>
-              );
-            })}
-            
-            {/* Active Connection Being Drawn */}
-            {isDrawingConnection && connectionStart && (
-              <>
-                {/* Draw the connection line in real-time */}
-                <path
-                  d={`M${connectionStart.x},${connectionStart.y} C${connectionStart.x + 50},${connectionStart.y} ${connectionEnd.x - 50},${connectionEnd.y} ${connectionEnd.x},${connectionEnd.y}`}
-                  stroke="#3b82f6"
-                  strokeWidth="3"
-                  fill="none"
-                  strokeDasharray="5,5"
-                  className="active-connection"
-                />
-                
-                {/* Starting point indicator */}
-                <circle
-                  cx={connectionStart.x}
-                  cy={connectionStart.y}
-                  r="5"
-                  fill="#3b82f6"
-                />
-                
-                {/* End point follows mouse cursor */}
-                <circle
-                  cx={connectionEnd.x}
-                  cy={connectionEnd.y}
-                  r="5"
-                  fill="#3b82f6"
-                  className="cursor-connection-point"
-                />
-                
-                {/* Enhanced feedback when near a potential target */}
-                {potentialTarget && (
-                  <>
-                    <circle
-                      cx={potentialTarget.x}
-                      cy={potentialTarget.y}
-                      r="8"
-                      fill="#3b82f6"
-                      className="animate-pulse"
-                    />
-                    <circle
-                      cx={potentialTarget.x}
-                      cy={potentialTarget.y}
-                      r="12"
-                      fill="transparent"
-                      stroke="#3b82f6"
-                      strokeWidth="2"
-                      opacity="0.5"
-                      className="animate-pulse"
-                    />
-                    
-                    {/* Draw a connecting line to the potential target */}
-                    <path
-                      d={`M${connectionEnd.x},${connectionEnd.y} L${potentialTarget.x},${potentialTarget.y}`}
-                      stroke="#3b82f6"
-                      strokeWidth="2"
-                      strokeDasharray="3,3"
-                      opacity="0.7"
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </svg>
-          
-          {/* Nodes */}
-          {nodes.map(node => (
-            <WorkflowNode 
-              key={node.id} 
-              node={node} 
-            />
-          ))}
-        </div>
+          maskColor="rgba(248, 249, 250, 0.5)"
+        />
         
-        {/* Empty State - Outside of the transformable container */}
+        {/* Custom control panel */}
+        <Panel position="top-right" className="bg-white rounded-lg shadow-md p-2 flex flex-col space-y-2">
+          <button 
+            onClick={onFitView}
+            className="p-1 hover:bg-neutral-100 rounded-md tooltip" 
+            title="Fit View (Ctrl+F)"
+          >
+            <Maximize size={18} />
+          </button>
+          <button 
+            onClick={() => {
+              if (reactFlowInstance) {
+                reactFlowInstance.zoomIn({ duration: 300 });
+              }
+            }}
+            className="p-1 hover:bg-neutral-100 rounded-md" 
+            title="Zoom In"
+          >
+            <ZoomIn size={18} />
+          </button>
+          <button 
+            onClick={() => {
+              if (reactFlowInstance) {
+                reactFlowInstance.zoomOut({ duration: 300 });
+              }
+            }}
+            className="p-1 hover:bg-neutral-100 rounded-md"
+            title="Zoom Out"
+          >
+            <ZoomOut size={18} />
+          </button>
+        </Panel>
+        
+        {/* Empty state - only shown when no nodes */}
         {nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center p-6 bg-white bg-opacity-90 rounded-xl shadow-sm">
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 pointer-events-none">
+            <div className="text-center p-6 rounded-xl shadow-sm">
               <div className="flex flex-col items-center">
-                <GitBranch size={48} className="text-neutral-300 mb-4" />
+                <div className="text-neutral-300 mb-4">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18M3 12h18M3 18h18" />
+                  </svg>
+                </div>
                 <h3 className="text-xl font-medium text-neutral-500 mb-2">Start Building Your Workflow</h3>
-                <p className="text-neutral-400 mb-4">Drag components from the left panel onto this canvas or right-click to add nodes</p>
-                <div className="flex gap-2">
+                <p className="text-neutral-400 mb-4">Drag components from the left panel onto this canvas or use the buttons below</p>
+                <div className="flex gap-2 pointer-events-auto">
                   <button 
                     onClick={() => addNewNode('prompt')}
                     className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
                   >
-                    <Plus size={16} />
                     Add Prompt
                   </button>
                   <button 
                     onClick={() => addNewNode('action')}
                     className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
                   >
-                    <Plus size={16} />
                     Add Action
                   </button>
                   <button 
                     onClick={() => addNewNode('condition')}
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors"
                   >
-                    <Plus size={16} />
                     Add Condition
                   </button>
                 </div>
@@ -475,17 +343,26 @@ const Canvas = () => {
             </div>
           </div>
         )}
-      </div>
-      
-      {/* Canvas navigation guide */}
-      <div className="absolute bottom-4 left-4 z-20 bg-white rounded-lg shadow-md p-2 text-xs text-neutral-500">
-        <p>Right-click: Add node</p>
-        <p>Ctrl+Drag: Pan canvas</p>
-        <p>Ctrl+Wheel: Zoom</p>
-        <p>Drag from output → input: Connect nodes</p>
-      </div>
+        
+        {/* Canvas navigation guide */}
+        <Panel position="bottom-left" className="bg-white rounded-lg shadow-md p-2 text-xs text-neutral-500">
+          <p>Right-click: Context menu</p>
+          <p>Drag: Pan canvas</p>
+          <p>Scroll: Zoom in/out</p>
+          <p>Shift+Click: Select multiple</p>
+          <p>Delete: Remove selected</p>
+          <p>Ctrl+F: Fit view</p>
+        </Panel>
+      </ReactFlow>
     </div>
   );
 };
 
-export default Canvas;
+// Wrap the component with ReactFlowProvider
+const CanvasWithProvider = () => (
+  <ReactFlowProvider>
+    <Canvas />
+  </ReactFlowProvider>
+);
+
+export default CanvasWithProvider;

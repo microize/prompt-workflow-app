@@ -1,3 +1,4 @@
+// src/pages/WorkflowPage.js
 import React, { useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -7,117 +8,61 @@ import NodePalette from '../components/workflow/NodePalette';
 import Canvas from '../components/workflow/Canvas';
 import WorkflowControls from '../components/workflow/WorkflowControls';
 
+// We need to add a package.json entry for react-flow-renderer
+// "react-flow-renderer": "^10.3.16"
+// or the newer package name:
+// "reactflow": "^11.7.0"
+
 const WorkflowPage = () => {
   const { workflows, selectedWorkflow, setSelectedWorkflow } = useAppContext();
   
   // Clear the selected workflow when unmounting
   useEffect(() => {
+    // Add performance monitoring for canvas operations
+    const perfMonitor = {
+      renderStart: 0,
+      renderTimes: [],
+    };
+    
+    const startRenderTimer = () => {
+      perfMonitor.renderStart = performance.now();
+    };
+    
+    const endRenderTimer = () => {
+      if (perfMonitor.renderStart > 0) {
+        const renderTime = performance.now() - perfMonitor.renderStart;
+        perfMonitor.renderTimes.push(renderTime);
+        
+        // Log if render time is concerning (over 100ms)
+        if (renderTime > 100) {
+          console.warn(`Slow render detected: ${renderTime.toFixed(2)}ms`);
+        }
+        
+        perfMonitor.renderStart = 0;
+      }
+    };
+    
+    // Add listeners for render performance monitoring
+    window.addEventListener('reactflow.render.start', startRenderTimer);
+    window.addEventListener('reactflow.render.end', endRenderTimer);
+    
     return () => {
+      // Clean up event listeners
+      window.removeEventListener('reactflow.render.start', startRenderTimer);
+      window.removeEventListener('reactflow.render.end', endRenderTimer);
+      
+      // Clear the selected workflow
       setSelectedWorkflow(null);
+      
+      // Log performance metrics
+      if (perfMonitor.renderTimes.length > 0) {
+        const avgRenderTime = perfMonitor.renderTimes.reduce((a, b) => a + b, 0) / perfMonitor.renderTimes.length;
+        console.info(`Workflow canvas average render time: ${avgRenderTime.toFixed(2)}ms`);
+      }
     };
   }, [setSelectedWorkflow]);
 
-  // Add this style tag to fix css issues
-  useEffect(() => {
-    // Add additional styles for the workflow page
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
-      /* Fix for connection handles */
-      .connection-handle {
-        transition: all 0.2s ease-out;
-        z-index: 30 !important;
-      }
-      
-      .handle-highlight {
-        transform: translate(-50%, -50%) scale(1.2) !important;
-        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3) !important;
-      }
-      
-      /* Output handle transforms differently */
-      [data-handle-type="output"].handle-highlight {
-        transform: translate(50%, -50%) scale(1.2) !important;
-      }
-      
-      /* Connection drawing mode */
-      .connection-drawing-mode {
-        cursor: crosshair !important;
-      }
-      
-      .connection-drawing-mode .input-handle {
-        transform: translate(-50%, -50%) scale(1.2);
-        animation: pulse 1.5s infinite ease-in-out;
-      }
-      
-      /* Better connection path styling */
-      .active-connection {
-        stroke-dasharray: 5, 5;
-        animation: dash 1s linear infinite;
-      }
-      
-      @keyframes dash {
-        to {
-          stroke-dashoffset: -20;
-        }
-      }
-      
-      /* Make canvas truly "infinite" */
-      .bg-grid-pattern {
-        background-image: linear-gradient(to right, #e8eaed 1px, transparent 1px), 
-                          linear-gradient(to bottom, #e8eaed 1px, transparent 1px);
-        background-size: 20px 20px !important;
-        min-width: 8000px !important;
-        min-height: 8000px !important;
-      }
-      
-      /* Fix for Safari overflow issues */
-      .infinite-canvas {
-        transform-origin: center center;
-      }
-      
-      /* Fix for node dragging */
-      .node-header {
-        cursor: move !important;
-      }
-      
-      /* Improved visibility during drag */
-      .canvas-drag-mode {
-        cursor: grabbing !important;
-      }
-      
-      /* Connection success animation */
-      .connection-success {
-        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.6) !important;
-        animation: success-pulse 0.5s ease-out !important;
-      }
-      
-      @keyframes success-pulse {
-        0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: translate(-50%, -50%) scale(1.5); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-        100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-      }
-      
-      @keyframes pulse {
-        0%, 100% {
-          opacity: 1;
-          transform: scale(1);
-        }
-        50% {
-          opacity: 0.5;
-          transform: scale(1.2);
-        }
-      }
-    `;
-    
-    document.head.appendChild(styleElement);
-    
-    // Clean up on unmount
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
-
   return (
-    // Add DndProvider here to ensure it's properly scoped to the Workflow page
     <DndProvider backend={HTML5Backend}>
       <WorkflowContextProvider>
         <div className="flex h-full flex-col">
@@ -125,7 +70,7 @@ const WorkflowPage = () => {
             {/* Node Palette */}
             <NodePalette workflows={workflows} />
             
-            {/* Canvas with improved wrapper */}
+            {/* Canvas with improved performance */}
             <div className="flex-1 relative overflow-hidden canvas-container">
               <Canvas />
             </div>

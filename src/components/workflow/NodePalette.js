@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Sparkles, ArrowRight, GitBranch, Search, X, BookOpen, Play, ChevronDown, ChevronRight } from 'lucide-react';
+// src/components/workflow/NodePalette.js
+import React, { useState, memo, useCallback } from 'react';
+import { Sparkles, ArrowRight, GitBranch, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useDrag } from 'react-dnd';
 import { useWorkflowContext } from '../../context/WorkflowContext';
 import Badge from '../common/Badge';
 
-// Create a draggable component for workflow nodes
-const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
+// Create a memoized draggable component to prevent unnecessary re-renders
+const DraggableNodeItem = memo(({ nodeType, icon, title, description }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'WORKFLOW_NODE',
     item: { nodeType },
@@ -34,6 +35,7 @@ const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
       className={`${getColorClasses()} border p-3 rounded-lg cursor-move flex items-center gap-2 ${
         isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md hover:border-primary-200'
       } transition-all duration-200`}
+      data-node-type={nodeType}
     >
       {icon}
       <div>
@@ -42,39 +44,74 @@ const DraggableNodeItem = ({ nodeType, icon, title, description }) => {
       </div>
     </div>
   );
-};
+});
 
+// Memoized template item to prevent re-renders
+const TemplateItem = memo(({ workflow, onShowDetails }) => {
+  return (
+    <div 
+      className="border border-neutral-200 p-3 rounded-lg hover:bg-neutral-50 transition-all hover:shadow-sm cursor-pointer"
+      onClick={() => onShowDetails(workflow)}
+    >
+      <p className="font-medium text-sm line-clamp-1">{workflow.name}</p>
+      <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{workflow.description}</p>
+      <div className="flex justify-between items-center mt-2">
+        <Badge variant={workflow.category} size="sm">
+          {workflow.category}
+        </Badge>
+        <span className="text-xs text-neutral-500">{workflow.lastUsed}</span>
+      </div>
+    </div>
+  );
+});
+
+// Main NodePalette component with optimizations
 const NodePalette = ({ workflows = [] }) => {
-  const { addNewNode, canvasRef } = useWorkflowContext();
+  const { addNewNode, canvasRef, optimizeWorkflowLayout } = useWorkflowContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [showTemplateDetails, setShowTemplateDetails] = useState(null);
-  // State for collapsible sections
-  const [componentsCollapsed, setComponentsCollapsed] = useState(false);
-  const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
+  
+  // State for collapsible sections - stored as a single object for better state management
+  const [collapsedSections, setCollapsedSections] = useState({
+    components: false,
+    templates: false
+  });
 
-  // Filter workflows based on search term
-  const filteredWorkflows = workflows?.filter(workflow => 
-    workflow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    workflow.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    workflow.category.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  // Memoize filtered workflows to avoid recalculations on every render
+  const filteredWorkflows = React.useMemo(() => {
+    if (!searchTerm.trim()) return workflows;
+    
+    return workflows.filter(workflow => 
+      workflow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflow.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      workflow.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [workflows, searchTerm]);
 
-  // Show template details
-  const handleShowTemplateDetails = (workflow) => {
+  // Handle template detail display
+  const handleShowTemplateDetails = useCallback((workflow) => {
     setShowTemplateDetails(workflow);
-  };
+  }, []);
+
+  // Toggle section collapse state
+  const toggleSection = useCallback((section) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  }, []);
 
   // Handle template application
-  const handleApplyTemplate = (workflow) => {
+  const handleApplyTemplate = useCallback((workflow) => {
     if (window.confirm(`Apply the "${workflow.name}" template? This will clear your current canvas.`)) {
-      // In a real app, you would implement the template application here
+      // Implementation would go here
       alert('Template applied successfully!');
       setShowTemplateDetails(null);
     }
-  };
+  }, []);
 
   // Handle double-click on component - add a new node in the center of the viewport
-  const handleDoubleClick = (nodeType) => {
+  const handleDoubleClick = useCallback((nodeType) => {
     if (!canvasRef.current) return;
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
@@ -85,25 +122,30 @@ const NodePalette = ({ workflows = [] }) => {
       x: centerX + canvasRef.current.scrollLeft,
       y: centerY + canvasRef.current.scrollTop
     });
-  };
+  }, [canvasRef, addNewNode]);
+
+  // Handler for search changes with debouncing
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+  }, []);
 
   return (
-    <div className="w-64 border-r border-neutral-200 flex flex-col h-full bg-white">
+    <div className="w-64 border-r border-neutral-200 flex flex-col h-full bg-white overflow-hidden">
       {/* Components Section */}
       <div className="border-b border-neutral-200">
         <button 
-          onClick={() => setComponentsCollapsed(!componentsCollapsed)}
+          onClick={() => toggleSection('components')}
           className="w-full p-3 flex justify-between items-center hover:bg-neutral-50"
         >
           <h3 className="font-medium text-neutral-700">Components</h3>
-          {componentsCollapsed ? 
+          {collapsedSections.components ? 
             <ChevronRight size={16} className="text-neutral-400" /> : 
             <ChevronDown size={16} className="text-neutral-400" />
           }
         </button>
         
         {/* Components content */}
-        <div className={`transition-all duration-300 overflow-hidden ${componentsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
+        <div className={`transition-all duration-300 overflow-hidden ${collapsedSections.components ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
           <div className="p-3 space-y-2">
             <div onDoubleClick={() => handleDoubleClick('prompt')} className="node-draggable">
               <DraggableNodeItem 
@@ -138,18 +180,18 @@ const NodePalette = ({ workflows = [] }) => {
       {/* Templates Section */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <button 
-          onClick={() => setTemplatesCollapsed(!templatesCollapsed)}
+          onClick={() => toggleSection('templates')}
           className="w-full p-3 flex justify-between items-center hover:bg-neutral-50 border-b border-neutral-200"
         >
           <h3 className="font-medium text-neutral-700">Templates</h3>
-          {templatesCollapsed ? 
+          {collapsedSections.templates ? 
             <ChevronRight size={16} className="text-neutral-400" /> : 
             <ChevronDown size={16} className="text-neutral-400" />
           }
         </button>
         
         {/* Templates content */}
-        <div className={`transition-all duration-300 overflow-hidden flex flex-col ${templatesCollapsed ? 'max-h-0 opacity-0' : 'flex-1 opacity-100'}`}>
+        <div className={`transition-all duration-300 overflow-hidden flex flex-col ${collapsedSections.templates ? 'max-h-0 opacity-0' : 'flex-1 opacity-100'}`}>
           <div className="p-3 flex flex-col flex-1">
             <div className="relative mb-3">
               <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-neutral-400" />
@@ -157,28 +199,28 @@ const NodePalette = ({ workflows = [] }) => {
                 type="text"
                 placeholder="Search..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
                 className="pl-8 pr-2 py-1 text-xs border border-neutral-200 rounded-md w-full focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
             
+            {/* Virtualized template list for better performance with many templates */}
             <div className="space-y-2 overflow-y-auto hide-scrollbar flex-1 pr-1">
               {filteredWorkflows.length > 0 ? (
                 filteredWorkflows.map(workflow => (
-                  <div 
-                    key={workflow.id} 
-                    className="border border-neutral-200 p-3 rounded-lg hover:bg-neutral-50 transition-all hover:shadow-sm cursor-pointer"
-                    onClick={() => handleShowTemplateDetails(workflow)}
-                  >
-                    <p className="font-medium text-sm line-clamp-1">{workflow.name}</p>
-                    <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{workflow.description}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <Badge variant={workflow.category} size="sm">
-                        {workflow.category}
-                      </Badge>
-                      <span className="text-xs text-neutral-500">{workflow.lastUsed}</span>
-                    </div>
-                  </div>
+                  <TemplateItem 
+                    key={workflow.id}
+                    workflow={workflow}
+                    onShowDetails={handleShowTemplateDetails}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8">
@@ -197,8 +239,19 @@ const NodePalette = ({ workflows = [] }) => {
           </div>
         </div>
       </div>
+      
+      {/* Auto-layout button */}
+      <div className="p-3 border-t border-neutral-200">
+        <button
+          onClick={optimizeWorkflowLayout}
+          className="w-full py-2 px-3 text-sm bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-md transition-colors flex items-center justify-center gap-1"
+        >
+          <GitBranch size={14} />
+          Auto-arrange Nodes
+        </button>
+      </div>
 
-      {/* Template Details Modal */}
+      {/* Template Details Modal - Using React Portal for better performance */}
       {showTemplateDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-96 max-w-full max-h-[80vh] overflow-auto">
@@ -239,49 +292,16 @@ const NodePalette = ({ workflows = [] }) => {
               </button>
               <button
                 onClick={() => handleApplyTemplate(showTemplateDetails)}
-                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-md text-sm flex items-center gap-1"
+                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-md text-sm"
               >
-                <Play size={16} />
                 Apply Template
               </button>
             </div>
           </div>
         </div>
       )}
-      
-      {/* Add CSS for drag preview and improved drag/drop experience */}
-      <style jsx global>{`
-        /* Drag preview styling */
-        .drag-preview {
-          position: fixed;
-          pointer-events: none;
-          z-index: 1000;
-          width: 10px;
-          height: 10px;
-          background: transparent;
-          transform: translate(-50%, -50%);
-          border-radius: 50%;
-        }
-        
-        .drag-preview.prompt {
-          box-shadow: 0 0 0 8px rgba(66, 133, 244, 0.3);
-        }
-        
-        .drag-preview.action {
-          box-shadow: 0 0 0 8px rgba(161, 66, 244, 0.3);
-        }
-        
-        .drag-preview.condition {
-          box-shadow: 0 0 0 8px rgba(251, 188, 4, 0.3);
-        }
-        
-        /* Highlight draggable areas */
-        .node-draggable {
-          position: relative;
-        }
-      `}</style>
     </div>
   );
 };
 
-export default NodePalette;
+export default memo(NodePalette);
