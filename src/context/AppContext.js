@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useCallback, useMemo } from 'react';
 import { promptDatabase, recentlyUsedPrompts, initialFavorites } from '../data/samplePrompts';
 import { sampleWorkflows } from '../data/sampleWorkflows';
+import { recentlyUsedWorkflows, popularWorkflows, initialFavoriteWorkflows } from '../data/workflowData';
 
 // Create context
 const AppContext = createContext();
@@ -15,21 +16,30 @@ export const useAppContext = () => {
 };
 
 export const AppContextProvider = ({ children }) => {
-  // State variables
+  // State variables for prompts
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [favorites, setFavorites] = useState(initialFavorites);
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [playgroundInput, setPlaygroundInput] = useState('');
+  
+  // State variables for workflows
   const [workflows, setWorkflows] = useState(sampleWorkflows);
   const [selectedWorkflow, setSelectedWorkflow] = useState(null);
+  const [favoriteWorkflows, setFavoriteWorkflows] = useState(initialFavoriteWorkflows);
+  const [workflowSearchQuery, setWorkflowSearchQuery] = useState('');
+  const [workflowSearchResults, setWorkflowSearchResults] = useState([]);
+  const [isWorkflowLoading, setIsWorkflowLoading] = useState(false);
+  
+  // Filter states
   const [activeFilters, setActiveFilters] = useState({
     web: false,
     design: false,
     writing: false,
     marketing: false
   });
+  
   // Add state for active page to be passed in from App.js
   const [setActivePage, updateSetActivePage] = useState(() => () => {});
 
@@ -43,7 +53,7 @@ export const AppContextProvider = ({ children }) => {
     return [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10);
   }, []);
 
-  // Functions
+  // Functions for prompts
   const openPlayground = useCallback((prompt) => {
     setSelectedPrompt(prompt);
     if (prompt) {
@@ -69,6 +79,50 @@ export const AppContextProvider = ({ children }) => {
         return [...prevFavorites, {
           ...prompt,
           addedAt: "Today"
+        }];
+      }
+    });
+  }, []);
+
+  // Functions for workflows
+  const openWorkflow = useCallback((workflow) => {
+    setSelectedWorkflow(workflow);
+    // Change the active page to workflow editor
+    setActivePage('workflow');
+    
+    // Add to recently used if not already at the top
+    if (workflow) {
+      setWorkflows(prevWorkflows => {
+        // Remove the workflow if it's already in the list to avoid duplicates
+        const filteredWorkflows = prevWorkflows.filter(w => w.id !== workflow.id);
+        // Add the workflow to the top of the list with updated lastUsed
+        return [
+          { 
+            ...workflow, 
+            lastUsed: 'Just now',
+            usageCount: (workflow.usageCount || 0) + 1
+          },
+          ...filteredWorkflows
+        ];
+      });
+    }
+  }, [setActivePage]);
+
+  const toggleFavoriteWorkflow = useCallback((workflow) => {
+    setFavoriteWorkflows(prevFavorites => {
+      const isFavorite = prevFavorites.some(f => f.id === workflow.id);
+      if (isFavorite) {
+        return prevFavorites.filter(f => f.id !== workflow.id);
+      } else {
+        const currentDate = new Date().toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+        
+        return [...prevFavorites, {
+          ...workflow,
+          addedAt: currentDate
         }];
       }
     });
@@ -122,19 +176,30 @@ export const AppContextProvider = ({ children }) => {
 
   // Value object to provide through context - memoize to prevent unnecessary re-renders
   const value = useMemo(() => ({
-    // Data
+    // Data - Prompts
     promptDatabase,
     recentlyUsedPrompts,
     popularPrompts,
     favorites,
-    workflows,
     
-    // Search and filters state
+    // Data - Workflows
+    workflows,
+    recentlyUsedWorkflows,
+    popularWorkflows,
+    favoriteWorkflows,
+    
+    // Search and filters state - Prompts
     searchQuery,
     setSearchQuery,
     searchResults,
     isLoading,
     activeFilters,
+    
+    // Search state - Workflows
+    workflowSearchQuery,
+    setWorkflowSearchQuery,
+    workflowSearchResults,
+    isWorkflowLoading,
     
     // Playground state
     selectedPrompt,
@@ -149,14 +214,23 @@ export const AppContextProvider = ({ children }) => {
     // Page navigation
     setPageSetter,
     
-    // Functions
+    // Functions - Prompts
     openPlayground,
     handleFilterClick,
-    toggleFavorite
+    toggleFavorite,
+    
+    // Functions - Workflows
+    openWorkflow,
+    toggleFavoriteWorkflow
   }), [
-    favorites, workflows, searchQuery, searchResults, isLoading, activeFilters,
-    selectedPrompt, playgroundInput, selectedWorkflow, openPlayground,
-    handleFilterClick, toggleFavorite, popularPrompts
+    // Prompts dependencies
+    favorites, searchQuery, searchResults, isLoading, activeFilters,
+    selectedPrompt, playgroundInput, openPlayground,
+    handleFilterClick, toggleFavorite, popularPrompts,
+    
+    // Workflows dependencies
+    workflows, favoriteWorkflows, workflowSearchQuery, workflowSearchResults, 
+    isWorkflowLoading, selectedWorkflow, openWorkflow, toggleFavoriteWorkflow
   ]);
 
   return (

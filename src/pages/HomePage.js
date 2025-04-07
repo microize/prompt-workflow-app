@@ -2,22 +2,31 @@ import React, { useState } from 'react';
 import SearchBar from '../components/common/SearchBar';
 import FilterButtons from '../components/home/FilterButtons';
 import PromptCollection from '../components/home/PromptCollection';
+import WorkflowCollection from '../components/home/WorkflowCollection';
 import SearchResults from '../components/home/SearchResults';
 import { useAppContext } from '../context/AppContext';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const HomePage = () => {
   const { 
     recentlyUsedPrompts, 
     popularPrompts, 
     favorites,
+    recentlyUsedWorkflows,
+    popularWorkflows,
+    favoriteWorkflows,
     searchQuery,
-    openPlayground // To navigate to playground
+    openPlayground, // To navigate to playground
+    openWorkflow   // To navigate to workflow editor
   } = useAppContext();
   
   // For demo purposes, we'll use a hardcoded username
   // In a real app, this would come from authentication context
   const [username] = useState('User');
+  
+  // State to control collapsed sections
+  const [promptsCollapsed, setPromptsCollapsed] = useState(false);
+  const [workflowsCollapsed, setWorkflowsCollapsed] = useState(false);
 
   // Navigate to workflow page 
   const navigateToWorkflow = () => {
@@ -86,28 +95,82 @@ const HomePage = () => {
         </div>
       )}
       
-      {/* Prompt Collections */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)]">
-        <PromptCollection 
-          title="Recently Used" 
-          icon="clock"
-          prompts={recentlyUsedPrompts} 
-          type="recent"
-        />
+      {/* PROMPTS SECTION */}
+      <div className="mb-8">
+        <div className="flex items-center mb-4">
+          <h2 className="text-xl font-medium text-neutral-800">Prompts</h2>
+          <button 
+            onClick={() => setPromptsCollapsed(!promptsCollapsed)}
+            className="ml-2 p-1 rounded-full hover:bg-neutral-200 transition-colors"
+            aria-label={promptsCollapsed ? "Expand prompts section" : "Collapse prompts section"}
+          >
+            {promptsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+          </button>
+        </div>
         
-        <PromptCollection 
-          title="Most Popular" 
-          icon="trending"
-          prompts={popularPrompts} 
-          type="popular"
-        />
+        {!promptsCollapsed && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)/2]">
+            <PromptCollection 
+              title="Recently Used" 
+              icon="clock"
+              prompts={recentlyUsedPrompts} 
+              type="recent"
+            />
+            
+            <PromptCollection 
+              title="Most Popular" 
+              icon="trending"
+              prompts={popularPrompts} 
+              type="popular"
+            />
+            
+            <PromptCollection 
+              title="Favorites" 
+              icon="star"
+              prompts={favorites} 
+              type="favorite"
+            />
+          </div>
+        )}
+      </div>
+      
+      {/* WORKFLOWS SECTION */}
+      <div>
+        <div className="flex items-center mb-4">
+          <h2 className="text-xl font-medium text-neutral-800">Workflows</h2>
+          <button 
+            onClick={() => setWorkflowsCollapsed(!workflowsCollapsed)}
+            className="ml-2 p-1 rounded-full hover:bg-neutral-200 transition-colors"
+            aria-label={workflowsCollapsed ? "Expand workflows section" : "Collapse workflows section"}
+          >
+            {workflowsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+          </button>
+        </div>
         
-        <PromptCollection 
-          title="Favorites" 
-          icon="star"
-          prompts={favorites} 
-          type="favorite"
-        />
+        {!workflowsCollapsed && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)/2]">
+            <WorkflowCollection 
+              title="Recently Used" 
+              icon="clock"
+              workflows={recentlyUsedWorkflows} 
+              type="recent"
+            />
+            
+            <WorkflowCollection 
+              title="Most Popular" 
+              icon="trending"
+              workflows={popularWorkflows} 
+              type="popular"
+            />
+            
+            <WorkflowCollection 
+              title="Favorites" 
+              icon="star"
+              workflows={favoriteWorkflows} 
+              type="favorite"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
