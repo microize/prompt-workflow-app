@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Home, 
   Sparkles, 
@@ -6,70 +6,74 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
   PlayCircle,
   BookOpen,
   Clock,
   Library,
   Calendar,
-  List
+  FileText
 } from 'lucide-react';
 
 const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
-  // State to track expanded sections
-  const [expandedSections, setExpandedSections] = useState({
-    prompt: true,
-    workflow: true
-  });
-
-  // Toggle section expansion
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
   return (
     <div 
-      className={`bg-neutral-800 text-white transition-all duration-300 ${
+      className={`bg-white text-neutral-700 transition-all duration-300 ${
         navCollapsed ? 'w-16' : 'w-64'
-      } border-r border-neutral-700 overflow-y-auto`}
+      } border-r border-neutral-200 flex flex-col h-full overflow-x-hidden`}
     >
-      {/* Header section with centered toggle button when collapsed */}
-      <div className={`p-6 ${navCollapsed ? 'flex justify-center' : 'flex justify-between items-center'}`}>
-        {!navCollapsed && <h2 className="font-semibold text-xl tracking-tight">Prompt App</h2>}
-        <button 
-          onClick={toggleNav} 
-          className="p-2 rounded hover:bg-neutral-700 transition-colors"
-          aria-label={navCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {navCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
+      {/* Header section with app name and toggle button */}
+      <div className={`p-4 border-b border-neutral-200 ${navCollapsed ? 'flex justify-center' : 'flex justify-between items-center'}`}>
+        {!navCollapsed && (
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded bg-neutral-900 flex items-center justify-center mr-2">
+              <span className="text-white font-semibold">P</span>
+            </div>
+            <div>
+              <h2 className="font-medium text-neutral-900">Prompt App</h2>
+              <div className="text-xs text-neutral-500">v4.0</div>
+            </div>
+          </div>
+        )}
+        {navCollapsed && (
+          <div 
+            className="w-8 h-8 rounded bg-neutral-900 flex items-center justify-center cursor-pointer"
+            onClick={toggleNav}
+          >
+            <span className="text-white font-semibold">P</span>
+          </div>
+        )}
+        {!navCollapsed && (
+          <button 
+            onClick={toggleNav} 
+            className="p-1 rounded hover:bg-neutral-100 transition-colors text-neutral-400"
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
       </div>
       
-      <div className="mt-2">
-        {/* Home - Top level item */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* GENERAL SECTION */}
+        {!navCollapsed && (
+          <SectionHeader label="General" />
+        )}
+        
         <NavItem 
-          icon={<Home size={20} />}
-          label="Home"
+          icon={<Home size={18} />}
+          label="Dashboard"
           isActive={activePage === 'home'}
           onClick={() => setActivePage('home')}
           navCollapsed={navCollapsed}
         />
-        
+
         {/* PROMPT SECTION */}
         {!navCollapsed && (
-          <SectionHeader 
-            label="Prompt" 
-            isExpanded={expandedSections.prompt}
-            onToggle={() => toggleSection('prompt')}
-          />
+          <SectionHeader label="Prompt" />
         )}
         
-        {/* Only show sub-items if section is expanded */}
-        {(!navCollapsed && expandedSections.prompt) && (
+        {/* Always show items, no toggle */}
+        {!navCollapsed ? (
           <>
             <SubNavItem 
               icon={<PlayCircle size={18} />}
@@ -92,13 +96,10 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
               onClick={() => setActivePage('prompt_history')}
             />
           </>
-        )}
-        
-        {/* If collapsed, show just the main icons for this section */}
-        {navCollapsed && (
+        ) : (
           <>
             <NavItem 
-              icon={<PlayCircle size={20} />}
+              icon={<PlayCircle size={18} />}
               label="Playground"
               isActive={activePage === 'playground'}
               onClick={() => setActivePage('playground')}
@@ -106,7 +107,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
             />
             
             <NavItem 
-              icon={<Library size={20} />}
+              icon={<Library size={18} />}
               label="Prompt Library"
               isActive={activePage === 'prompt_library'}
               onClick={() => setActivePage('prompt_library')}
@@ -114,7 +115,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
             />
             
             <NavItem 
-              icon={<Clock size={20} />}
+              icon={<Clock size={18} />}
               label="History"
               isActive={activePage === 'prompt_history'}
               onClick={() => setActivePage('prompt_history')}
@@ -125,15 +126,11 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
         
         {/* WORKFLOW SECTION */}
         {!navCollapsed && (
-          <SectionHeader 
-            label="Workflow" 
-            isExpanded={expandedSections.workflow}
-            onToggle={() => toggleSection('workflow')}
-          />
+          <SectionHeader label="Workflow" />
         )}
         
-        {/* Only show sub-items if section is expanded */}
-        {(!navCollapsed && expandedSections.workflow) && (
+        {/* Always show items, no toggle */}
+        {!navCollapsed ? (
           <>
             <SubNavItem 
               icon={<GitBranch size={18} />}
@@ -156,13 +153,10 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
               onClick={() => setActivePage('jobs')}
             />
           </>
-        )}
-        
-        {/* If collapsed, show just the main icons for this section */}
-        {navCollapsed && (
+        ) : (
           <>
             <NavItem 
-              icon={<GitBranch size={20} />}
+              icon={<GitBranch size={18} />}
               label="Editor"
               isActive={activePage === 'workflow'}
               onClick={() => setActivePage('workflow')}
@@ -170,7 +164,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
             />
             
             <NavItem 
-              icon={<BookOpen size={20} />}
+              icon={<BookOpen size={18} />}
               label="Workflow Library"
               isActive={activePage === 'workflow_library'}
               onClick={() => setActivePage('workflow_library')}
@@ -178,7 +172,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
             />
             
             <NavItem 
-              icon={<Calendar size={20} />}
+              icon={<Calendar size={18} />}
               label="Jobs"
               isActive={activePage === 'jobs'}
               onClick={() => setActivePage('jobs')}
@@ -186,13 +180,22 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
             />
           </>
         )}
-        
-        {/* SETTINGS - always visible */}
+      </div>
+      
+      {/* SETTINGS - always visible at bottom */}
+      <div className="border-t border-neutral-200 mt-auto">
         <NavItem 
-          icon={<Settings size={20} />}
+          icon={<Settings size={18} />}
           label="Settings"
           isActive={activePage === 'settings'}
           onClick={() => setActivePage('settings')}
+          navCollapsed={navCollapsed}
+        />
+        <NavItem 
+          icon={<FileText size={18} />}
+          label="Documentation"
+          isActive={activePage === 'documentation'}
+          onClick={() => setActivePage('documentation')}
           navCollapsed={navCollapsed}
         />
       </div>
@@ -200,63 +203,85 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
   );
 };
 
-// Component for section headers (Prompt, Workflow)
-const SectionHeader = ({ label, isExpanded, onToggle }) => {
+// Simplified component for section headers without toggle functionality
+const SectionHeader = ({ label }) => {
   return (
-    <div className="mt-4 mb-1">
-      <button 
-        onClick={onToggle}
-        className="flex items-center justify-between w-full px-6 py-2 text-neutral-400 hover:text-white"
-      >
-        <span className="font-medium text-sm uppercase tracking-wider">{label}</span>
-        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-      </button>
+    <div className="mt-2 mb-0.5 px-3">
+      <div className="flex items-center text-neutral-500">
+        <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+      </div>
     </div>
   );
 };
 
 // Helper component for top-level nav items
-const NavItem = ({ icon, label, isActive, onClick, navCollapsed }) => {
+const NavItem = ({ icon, label, isActive, onClick, navCollapsed, badge }) => {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center py-3 ${navCollapsed ? 'justify-center' : 'px-6'} transition-colors ${
+      className={`w-full flex items-center py-2 ${
+        navCollapsed 
+          ? 'justify-center px-0 mx-0' 
+          : 'px-3 mx-0'
+      } transition-colors ${
         isActive 
-          ? 'bg-neutral-700' 
-          : 'hover:bg-neutral-700'
+          ? 'bg-neutral-100 text-neutral-900' 
+          : 'hover:bg-neutral-50 text-neutral-700'
       }`}
       aria-label={label}
     >
-      <div className={`${isActive ? 'text-primary-500' : 'text-neutral-400'} ${navCollapsed ? 'ml-0' : ''}`}>
+      <div className={`flex items-center justify-center ${isActive ? 'text-neutral-900' : 'text-neutral-500'}`}>
         {icon}
       </div>
+      
       {!navCollapsed && (
-        <span className={`ml-4 ${isActive ? 'font-medium text-white' : 'text-neutral-300'}`}>
+        <span className={`ml-3 text-sm ${isActive ? 'font-medium text-neutral-900' : 'text-neutral-700'}`}>
           {label}
         </span>
+      )}
+      
+      {!navCollapsed && badge && (
+        <span className="ml-auto bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full px-2 py-0.5">
+          {badge}
+        </span>
+      )}
+      
+      {navCollapsed && badge && (
+        <div className="absolute top-0 right-0 -mt-1 -mr-1">
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200 text-xs font-medium text-neutral-800">
+            {badge}
+          </span>
+        </div>
       )}
     </button>
   );
 };
 
 // Helper component for sub-nav items
-const SubNavItem = ({ icon, label, isActive, onClick }) => {
+const SubNavItem = ({ icon, label, isActive, onClick, badge }) => {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center py-2 pl-12 pr-6 transition-colors ${
+      className={`w-full flex items-center py-2 pl-8 pr-3 transition-colors ${
         isActive 
-          ? 'bg-neutral-700' 
-          : 'hover:bg-neutral-700'
+          ? 'bg-neutral-100 text-neutral-900' 
+          : 'hover:bg-neutral-50 text-neutral-600'
       }`}
       aria-label={label}
     >
-      <div className={`${isActive ? 'text-primary-500' : 'text-neutral-400'}`}>
+      <div className={`${isActive ? 'text-neutral-900' : 'text-neutral-500'}`}>
         {icon}
       </div>
-      <span className={`ml-3 text-sm ${isActive ? 'font-medium text-white' : 'text-neutral-300'}`}>
+      
+      <span className={`ml-2 text-sm ${isActive ? 'font-medium text-neutral-900' : 'text-neutral-600'}`}>
         {label}
       </span>
+      
+      {badge && (
+        <span className="ml-auto bg-neutral-200 text-neutral-800 text-xs font-medium rounded-full px-2 py-0.5">
+          {badge}
+        </span>
+      )}
     </button>
   );
 };
