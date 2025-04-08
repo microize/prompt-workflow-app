@@ -58,24 +58,30 @@ const WorkflowPage = () => {
   }, [setSelectedWorkflow]);
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <WorkflowContextProvider>
-        <div className="flex h-full flex-col">
-          <div className="flex flex-1 overflow-hidden">
-            {/* Node Palette */}
-            <NodePalette workflows={workflows} />
-            
-            {/* Canvas with improved performance */}
-            <div className="flex-1 relative overflow-hidden canvas-container" id="workflow-canvas-container">
-              <Canvas />
+    <div className="p-2 h-full">
+      <div className="bg-white h-full rounded-lg border border-neutral-200 overflow-hidden">
+        <DndProvider backend={HTML5Backend}>
+          <WorkflowContextProvider>
+            <div className="flex h-full flex-col">
+              <div className="flex flex-1 overflow-hidden">
+                {/* Node Palette */}
+                <div className="border-r border-neutral-100">
+                  <NodePalette workflows={workflows} />
+                </div>
+                
+                {/* Canvas with improved performance */}
+                <div className="flex-1 relative overflow-hidden canvas-container" id="workflow-canvas-container">
+                  <Canvas />
+                </div>
+              </div>
+              
+              {/* Footer Controls */}
+              <WorkflowControls />
             </div>
-          </div>
-          
-          {/* Footer Controls */}
-          <WorkflowControls />
-        </div>
-      </WorkflowContextProvider>
-    </DndProvider>
+          </WorkflowContextProvider>
+        </DndProvider>
+      </div>
+    </div>
   );
 };
 

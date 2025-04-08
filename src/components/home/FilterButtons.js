@@ -13,15 +13,15 @@ const FilterButtons = () => {
   ];
 
   return (
-    <div className="flex flex-wrap justify-center gap-4">
+    <div className="flex flex-wrap justify-center gap-3">
       {filterCategories.map(category => (
         <button
           key={category.id}
           onClick={() => handleFilterClick(category.id)}
-          className={`px-6 py-3 rounded-full text-sm font-medium transition-colors border ${
+          className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
             activeFilters[category.id] 
-              ? 'bg-primary-500 text-white border-primary-500' 
-              : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'
+              ? 'bg-primary-50 text-primary-600 border border-primary-200 shadow-sm' 
+              : 'bg-neutral-100 text-neutral-600 border border-neutral-100 hover:bg-neutral-200'
           }`}
           aria-pressed={activeFilters[category.id]}
         >

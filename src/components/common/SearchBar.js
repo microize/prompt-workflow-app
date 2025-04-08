@@ -43,37 +43,37 @@ const SearchBar = () => {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex rounded-full overflow-hidden border border-neutral-200 bg-white shadow-card hover:shadow-card-hover transition-shadow">
+      <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-white shadow-sm hover:shadow transition-shadow">
         <div className="relative flex-grow">
-          <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-neutral-400" size={20} />
+          <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-neutral-400" size={18} strokeWidth={1.75} />
           <input
             type="text"
             placeholder="Search prompts..."
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
-            className="w-full pl-14 pr-4 py-4 text-base border-0 focus:outline-none focus:ring-0"
+            className="w-full pl-14 pr-4 py-3.5 text-base border-0 focus:outline-none focus:ring-0"
             aria-label="Search prompts"
           />
         </div>
         <button
           onClick={handleSearch}
           disabled={isButtonDisabled}
-          className={`px-8 py-4 flex items-center justify-center transition-colors ${
+          className={`px-6 py-3.5 flex items-center justify-center transition-colors ${
             isButtonDisabled 
-              ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed' 
+              ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed' 
               : 'bg-primary-500 hover:bg-primary-600 text-white'
           }`}
           aria-label={isSearching ? "Searching" : "Search"}
         >
           {isSearching ? (
             <>
-              <Loader size={18} className="mr-2 animate-spin" />
+              <Loader size={18} strokeWidth={1.75} className="mr-2 animate-spin" />
               <span className="font-medium">Searching...</span>
             </>
           ) : (
             <>
-              <Search size={18} className="mr-2" />
+              <Search size={18} strokeWidth={1.75} className="mr-2" />
               <span className="font-medium">Search</span>
             </>
           )}

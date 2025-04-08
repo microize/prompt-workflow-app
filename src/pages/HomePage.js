@@ -5,7 +5,7 @@ import PromptCollection from '../components/home/PromptCollection';
 import WorkflowCollection from '../components/home/WorkflowCollection';
 import SearchResults from '../components/home/SearchResults';
 import { useAppContext } from '../context/AppContext';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const HomePage = () => {
   const { 
@@ -16,50 +16,41 @@ const HomePage = () => {
     popularWorkflows,
     favoriteWorkflows,
     searchQuery,
-    openPlayground, // To navigate to playground
-    openWorkflow   // To navigate to workflow editor
+    openPlayground,
+    openWorkflow
   } = useAppContext();
   
   // For demo purposes, we'll use a hardcoded username
-  // In a real app, this would come from authentication context
   const [username] = useState('User');
   
-  // State to control collapsed sections
-  const [promptsCollapsed, setPromptsCollapsed] = useState(false);
-  const [workflowsCollapsed, setWorkflowsCollapsed] = useState(false);
+  // State to track the active tab
+  const [activeTab, setActiveTab] = useState('prompts'); // 'prompts' or 'workflows'
 
   // Navigate to workflow page 
   const navigateToWorkflow = () => {
-    // Looking at App.js, we need to dispatch a user event that will be caught by the parent component
-    // The active page state is maintained in App.js, not in the context
     const event = new CustomEvent('navigateTo', { detail: { page: 'workflow' } });
     window.dispatchEvent(event);
   };
 
   // Navigate to playground for a new prompt
   const navigateToNewPrompt = () => {
-    // We can either use the openPlayground function or use the same event-based approach
-    // Let's use the event approach for consistency
     const event = new CustomEvent('navigateTo', { detail: { page: 'playground' } });
     window.dispatchEvent(event);
-    
-    // Clear any selected prompt for a fresh start
-    // This should happen automatically in App.js handlePageChange, but let's be explicit
     openPlayground(null);
   };
 
   return (
-    <div className="p-8 bg-neutral-50 min-h-screen">
+    <div className="p-8 min-h-screen">
       {/* Header with welcome message and action buttons */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-medium text-neutral-800">
           Welcome, {username}
         </h1>
         
-        <div className="flex gap-3">
+        <div className="flex gap-4">
           <button 
             onClick={navigateToNewPrompt}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg transition-colors hover:bg-primary-600"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-500 text-white rounded-lg transition-all hover:bg-primary-600"
           >
             <Plus size={18} />
             New Prompt
@@ -67,7 +58,7 @@ const HomePage = () => {
           
           <button 
             onClick={navigateToWorkflow}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg transition-colors hover:bg-purple-600"
+            className="flex items-center gap-2 px-5 py-2.5 bg-purple-500 text-white rounded-lg transition-all hover:bg-purple-600"
           >
             <Plus size={18} />
             New Workflow
@@ -75,14 +66,13 @@ const HomePage = () => {
         </div>
       </div>
       
-      {/* Top section with search bar */}
-      <div className="mt-8 mb-6 animate-fade-in">
-        <SearchBar />
-      </div>
-      
-      {/* Filter section with text label */}
-      <div className="mb-6 animate-slide-up">
-        <div className="flex items-center justify-center space-x-4">
+      {/* Search and filter section */}
+      <div className="mb-8">
+        <div className="max-w-3xl mx-auto mb-6">
+          <SearchBar />
+        </div>
+        
+        <div className="flex items-center justify-center space-x-4 mt-4">
           <h3 className="text-neutral-700 font-medium">Filter prompts by:</h3>
           <FilterButtons />
         </div>
@@ -90,26 +80,42 @@ const HomePage = () => {
             
       {/* Search Results - shown when there's a search query */}
       {searchQuery && (
-        <div className="mb-6 animate-fade-in">
+        <div className="mb-8 animate-fade-in">
           <SearchResults searchQuery={searchQuery} />
         </div>
       )}
       
-      {/* PROMPTS SECTION */}
-      <div className="mb-8">
-        <div className="flex items-center mb-4">
-          <h2 className="text-xl font-medium text-neutral-800">Prompts</h2>
-          <button 
-            onClick={() => setPromptsCollapsed(!promptsCollapsed)}
-            className="ml-2 p-1 rounded-full hover:bg-neutral-200 transition-colors"
-            aria-label={promptsCollapsed ? "Expand prompts section" : "Collapse prompts section"}
+      {/* Tab Navigation - Improved Styling */}
+      <div className="mb-6 border-b border-neutral-200">
+        <div className="flex">
+          <button
+            className={`py-3 px-8 font-medium text-base transition-all ${
+              activeTab === 'prompts' 
+                ? 'text-primary-600 border-b-2 border-primary-500 bg-primary-50/30' 
+                : 'text-neutral-500 hover:text-neutral-700 border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('prompts')}
           >
-            {promptsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+            Prompts
+          </button>
+          <button
+            className={`py-3 px-8 font-medium text-base transition-all ${
+              activeTab === 'workflows' 
+                ? 'text-primary-600 border-b-2 border-primary-500 bg-primary-50/30' 
+                : 'text-neutral-500 hover:text-neutral-700 border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('workflows')}
+          >
+            Workflows
           </button>
         </div>
-        
-        {!promptsCollapsed && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)/2]">
+      </div>
+      
+      {/* Tab Content */}
+      <div className="animate-fade-in">
+        {/* PROMPTS SECTION */}
+        {activeTab === 'prompts' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)]">
             <PromptCollection 
               title="Recently Used" 
               icon="clock"
@@ -132,23 +138,10 @@ const HomePage = () => {
             />
           </div>
         )}
-      </div>
-      
-      {/* WORKFLOWS SECTION */}
-      <div>
-        <div className="flex items-center mb-4">
-          <h2 className="text-xl font-medium text-neutral-800">Workflows</h2>
-          <button 
-            onClick={() => setWorkflowsCollapsed(!workflowsCollapsed)}
-            className="ml-2 p-1 rounded-full hover:bg-neutral-200 transition-colors"
-            aria-label={workflowsCollapsed ? "Expand workflows section" : "Collapse workflows section"}
-          >
-            {workflowsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-          </button>
-        </div>
         
-        {!workflowsCollapsed && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)/2]">
+        {/* WORKFLOWS SECTION */}
+        {activeTab === 'workflows' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-340px)]">
             <WorkflowCollection 
               title="Recently Used" 
               icon="clock"

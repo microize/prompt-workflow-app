@@ -42,8 +42,8 @@
   
   /* Custom scrollbar - minimal Apple style */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   
   ::-webkit-scrollbar-track {
@@ -51,12 +51,12 @@
   }
   
   ::-webkit-scrollbar-thumb {
-    background: #d1d1d6;
-    border-radius: 4px;
+    background: #e8eaed;
+    border-radius: 6px;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: #c7c7cc;
+    background: #dadce0;
   }
   
   /* Hide scrollbar when not in use, show on hover */
@@ -67,10 +67,11 @@
   
   .hide-scrollbar::-webkit-scrollbar-thumb {
     background: transparent;
+    transition: background 0.3s;
   }
   
   .hide-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: #d1d1d6;
+    background: #e8eaed;
   }
   
   /* Smooth scrolling container */
@@ -98,101 +99,6 @@
   }
   
 /* Connection handles styling */
-[data-handle-type="input"],
-[data-handle-type="output"] {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-[data-handle-type="input"]:hover,
-[data-handle-type="output"]:hover {
-  transform: scale(1.2) translate(-40%, -40%);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-}
-
-[data-handle-type="output"]:hover {
-  transform: scale(1.2) translate(40%, -40%);
-}
-
-/* Dynamic highlight for potential connection target */
-.potential-target {
-  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.2);
-  }
-}
-
-/* Connection paths styling */
-.connection-path {
-    stroke: var(--color-neutral-400);
-    transition: stroke var(--transition-quick);
-  }
-  
-  .connection-path:hover {
-    stroke: var(--color-primary-500);
-    stroke-width: 3px;
-    cursor: pointer;
-  }
-  
-  .connection-path-dashed {
-    stroke: var(--color-primary-400);
-    stroke-dasharray: 5, 5;
-    animation: dash 1s linear infinite;
-  }
-  
-  @keyframes dash {
-    to {
-      stroke-dashoffset: -10;
-    }
-  }
-  
-  /* Clean animation for content transitions */
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  
-  .fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-  
-  @keyframes slideUp {
-    from { 
-      transform: translateY(10px);
-      opacity: 0; 
-    }
-    to { 
-      transform: translateY(0);
-      opacity: 1; 
-    }
-  }
-  
-  .slide-up {
-    animation: slideUp 0.3s ease-out;
-  }
-  
-  /* Button focus styles */
-  button:focus, input:focus {
-    outline: none;
-  }
-  
-  /* Card hover transitions */
-  .card-hover-effect {
-    transition: transform var(--transition-default), box-shadow var(--transition-default);
-  }
-  
-  .card-hover-effect:hover {
-    transform: translateY(-2px);
-  }
-
-  /* Connection handles styling with improved visibility */
 [data-handle-type="input"],
 [data-handle-type="output"] {
   transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
@@ -647,4 +553,175 @@
 /* Connection drawing mode cursor */
 .connection-drawing-mode {
   cursor: crosshair !important;
+}
+
+/* Improved transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Enhanced shadows */
+.shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px rgba(0, 0, 0, 0.02);
+}
+
+.shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.hover\:shadow:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 3px 10px rgba(0, 0, 0, 0.04);
+}
+
+/* Subtle card hover effect */
+.card-hover-effect {
+  transition: all 0.2s ease-out;
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-1px);
+}
+
+/* Animation for tab transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Focus states */
+.focus-ring {
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.15);
+}
+
+/* Clean animated border for active elements */
+.border-active {
+  position: relative;
+}
+
+.border-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.border-active.active::after {
+  background-color: var(--color-primary-500);
+}
+
+/* Enhanced layering effect */
+.flex-1.bg-white {
+  box-shadow: -6px 0 16px rgba(0, 0, 0, 0.05);
+  z-index: 10;
+  position: relative;
+}
+
+/* Additional refinements for the elevated content */
+.rounded-tl-xl.rounded-bl-xl {
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+}
+
+/* Subtle hover effects for cards */
+.prompt-card:hover, .workflow-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease-out;
+}
+
+/* Button refinements */
+button.bg-primary-500, button.bg-purple-500 {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+button.bg-primary-500:hover, button.bg-purple-500:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Improved tab styling */
+.border-b-2.border-primary-500 {
+  transition: all 0.2s ease;
+}
+
+/* Better animation for tab content */
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Smooth transitions for all interactive elements */
+button, a, .transition-all {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fix for shadows between nav and content */
+.flex-1.bg-white {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  z-index: 1;
+}
+
+/* Ensure Navbar itself has no shadow */
+.bg-neutral-50.text-neutral-700 {
+  box-shadow: none !important;
+  z-index: 0;
+}
+
+/* Fix for icon centering in collapsed navbar */
+button.justify-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.justify-center > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Improved active tab styling */
+.border-b-2.border-primary-500 {
+  position: relative;
+}
+
+.border-b-2.border-primary-500:after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary-500);
+}
+
+/* Ensure content scrolls properly */
+.overflow-y-auto {
+  scrollbar-width: thin;
+}
+
+/* Ensure the navbar sits flush with the screen edge */
+.pl-0 {
+  padding-left: 0 !important;
 }
