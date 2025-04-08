@@ -63,6 +63,10 @@ const WorkflowPage = () => {
         <DndProvider backend={HTML5Backend}>
           <WorkflowContextProvider>
             <div className="flex h-full flex-col">
+              <div className="p-6 border-b border-neutral-100">
+                <h2 className="text-xl font-semibold">Workflow Editor</h2>
+                <p className="text-sm text-neutral-500 mt-1">Create and edit automated workflow sequences</p>
+              </div>
               <div className="flex flex-1 overflow-hidden">
                 {/* Node Palette */}
                 <div className="border-r border-neutral-100">

@@ -47,6 +47,15 @@ const PromptLibraryPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const promptsPerPage = 15;
 
+  // Debounced search state
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+
+  // Debounce effect for search
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   // Apply filtering and sorting when dependencies change
   useEffect(() => {
     setIsLoading(true);
@@ -57,9 +66,9 @@ const PromptLibraryPage = () => {
       let filtered = [...promptDatabase];
       
       // Text search filter
-      if (searchQuery) {
+      if (debouncedSearchQuery) {
         filtered = filtered.filter(prompt => 
-          prompt.text.toLowerCase().includes(searchQuery.toLowerCase())
+          prompt.text.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         );
       }
       
@@ -123,7 +132,7 @@ const PromptLibraryPage = () => {
     return () => clearTimeout(timeoutId);
   }, [
     promptDatabase, 
-    searchQuery, 
+    debouncedSearchQuery, 
     activeFilters, 
     customFilters,
     selectedTags,
@@ -191,6 +200,9 @@ const PromptLibraryPage = () => {
   const handleNextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
+
+  const handleFirstPage = () => setCurrentPage(1);
+  const handleLastPage = () => setCurrentPage(totalPages);
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -429,7 +441,7 @@ const PromptLibraryPage = () => {
           ) : filteredPrompts.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center border border-neutral-200">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100 text-neutral-400 mb-4">
-                <Search size={32} />
+                <img src="/assets/no-data.svg" alt="No data" className="w-12 h-12" />
               </div>
               <h3 className="text-lg font-medium text-neutral-700 mb-2">No prompts found</h3>
               <p className="text-neutral-500 mb-6">Try adjusting your search or filters to find what you're looking for.</p>
@@ -509,6 +521,7 @@ const PromptLibraryPage = () => {
                                   size="sm"
                                   onClick={() => openPlayground(prompt)}
                                   className="prompt-try-button"
+                                  title="Use this prompt in the playground"
                                 >
                                   Use Prompt
                                 </Button>
@@ -525,6 +538,14 @@ const PromptLibraryPage = () => {
               {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex justify-center items-center mt-6 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFirstPage}
+                    disabled={currentPage === 1}
+                  >
+                    First
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -585,6 +606,14 @@ const PromptLibraryPage = () => {
                     endIcon={<ChevronRight size={16} />}
                   >
                     Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLastPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Last
                   </Button>
                 </div>
               )}
