@@ -69,7 +69,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
 
         {/* PROMPT SECTION */}
         {!navCollapsed && (
-          <SectionHeader label="Prompt" />
+          <SectionHeader label="Prompts" />
         )}
         
         {/* Always show items, no toggle */}
@@ -126,7 +126,7 @@ const Navbar = ({ navCollapsed, toggleNav, activePage, setActivePage }) => {
         
         {/* WORKFLOW SECTION */}
         {!navCollapsed && (
-          <SectionHeader label="Workflow" />
+          <SectionHeader label="Workflows" />
         )}
         
         {/* Always show items, no toggle */}
