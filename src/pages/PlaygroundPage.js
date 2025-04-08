@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import PlaygroundEditor from '../components/playground/PlaygroundEditor';
 import PromptSettings from '../components/playground/PromptSettings';
@@ -10,7 +10,7 @@ const PlaygroundPage = () => {
   const { selectedPrompt, setSelectedPrompt, playgroundInput, setPlaygroundInput } = useAppContext();
 
   // Reset playgroundInput when selectedPrompt changes if it wasn't explicitly set
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedPrompt && !playgroundInput) {
       setPlaygroundInput(selectedPrompt.text);
     }
@@ -20,7 +20,7 @@ const PlaygroundPage = () => {
     <div className="p-0 h-full bg-neutral-50 flex">
       {/* Main Content */}
       <div className="flex-1 bg-white rounded-lg border border-neutral-200 overflow-hidden h-full">
-        {/* Header - Removed gap between heading and content */}
+        {/* Header */}
         <div className="p-6 border-b border-neutral-100">
           <h2 className="text-xl font-semibold">Playground</h2>
           <p className="text-sm text-neutral-500 mt-1">
