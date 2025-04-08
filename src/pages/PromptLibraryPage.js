@@ -203,10 +203,11 @@ const PromptLibraryPage = () => {
   };
 
   return (
-    <div className="p-8 bg-neutral-50 min-h-screen">
-      <div className="bg-white rounded-lg border border-neutral-200 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-neutral-800">Prompt Library</h1>
+    <div className="p-0 h-full bg-neutral-50">
+      <div className="bg-white rounded-lg border border-neutral-200 overflow-hidden h-full">
+        {/* Header - Removed gap between heading and content */}
+        <div className="p-6 border-b border-neutral-100">
+          <h2 className="text-xl font-semibold">Prompt Library</h2>
           
           <div className="flex items-center gap-3">
             <Button

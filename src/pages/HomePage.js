@@ -43,9 +43,7 @@ const HomePage = () => {
     <div className="p-8 min-h-screen">
       {/* Header with welcome message and action buttons */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-medium text-neutral-800">
-          Welcome, {username}
-        </h1>
+      <h2 className="text-xl font-semibold">Welcome, {username}</h2>
         
         <div className="flex gap-4">
           <button 
