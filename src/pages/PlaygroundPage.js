@@ -1,5 +1,11 @@
 // src/pages/PlaygroundPage.js
 import React from 'react';
+import { 
+  PlayCircle, 
+  Paperclip, 
+  Settings, 
+  Sliders as SlidersIcon 
+} from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import PromptEditor from '../components/playground/PromptEditor';
 import ModelSettingsPanel from '../components/playground/ModelSettingsPanel';
@@ -128,8 +134,8 @@ const SettingsTabButton = ({ title, icon, isActive, onClick }) => {
 // Simple icon component that maps string names to Lucide components
 const IconComponent = ({ name, size = 16, className = "" }) => {
   const icons = {
-    sliders: <Sliders size={size} className={className} />,
-    braces: <span className="font-mono">{ }</span>,
+    sliders: <SlidersIcon size={size} className={className} />,
+    braces: <span className="font-mono text-sm">{ }</span>,
     paperclip: <Paperclip size={size} className={className} />,
     settings: <Settings size={size} className={className} />,
     play: <PlayCircle size={size} className={className} />
