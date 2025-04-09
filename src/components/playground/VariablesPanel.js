@@ -156,4 +156,3 @@ const VariablesTable = ({ variables, handleDeleteVariable }) => (
 );
 
 export default VariablesPanel;
-

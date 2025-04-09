@@ -124,7 +124,9 @@ export const usePromptLibrary = () => {
     console.log(`File "${file.name}" would be processed for import`);
     
     // Reset the file input
-    e.target.value = '';
+    if (e.target) {
+      e.target.value = '';
+    }
   }, []);
 
   // Export all prompts
@@ -175,7 +177,7 @@ export const usePromptLibrary = () => {
   const confirmDelete = useCallback(() => {
     // Here you would handle the actual deletion
     // For demonstration purposes:
-    console.log(`Prompt "${promptToDelete?.text.substring(0, 20)}..." would be deleted`);
+    console.log(`Prompt "${promptToDelete?.text?.substring(0, 20)}..." would be deleted`);
     
     setIsDeleteModalOpen(false);
     setPromptToDelete(null);
@@ -231,3 +233,5 @@ export const usePromptLibrary = () => {
     handleDrop
   };
 };
+
+export default usePromptLibrary;

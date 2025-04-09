@@ -14,6 +14,10 @@ const FilesPanel = () => {
   
   const fileInputRef = useRef(null);
 
+  const handleUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -53,7 +57,7 @@ const FilesPanel = () => {
           </ul>
         </div>
       ) : (
-        <EmptyFilesState fileInputRef={fileInputRef} />
+        <EmptyFilesState onClick={handleUpload} />
       )}
       
       {attachedFiles.length > 0 && (
@@ -73,22 +77,19 @@ const FilesPanel = () => {
 };
 
 // Helper component for empty files state
-const EmptyFilesState = ({ fileInputRef }) => (
+const EmptyFilesState = ({ onClick }) => (
   <div className="p-6 text-center border border-dashed border-neutral-300 rounded-lg">
     <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-neutral-100 flex items-center justify-center">
       <Paperclip size={20} className="text-neutral-400" />
     </div>
     <p className="text-neutral-500 mb-2">No files attached</p>
-    <label className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-neutral-100 text-neutral-700 rounded-md hover:bg-neutral-200 cursor-pointer">
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-neutral-100 text-neutral-700 rounded-md hover:bg-neutral-200 cursor-pointer"
+    >
       <Plus size={14} />
       Browse Files
-      <input 
-        type="file" 
-        multiple 
-        onChange={(e) => fileInputRef.current?.files ? handleFileAttachment(e) : null} 
-        className="hidden" 
-      />
-    </label>
+    </button>
   </div>
 );
 
@@ -137,4 +138,3 @@ const FileListItem = ({ file, onRemove, onToggleVariable, onUpdateVariableName }
 );
 
 export default FilesPanel;
-
