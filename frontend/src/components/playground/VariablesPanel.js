@@ -1,7 +1,26 @@
 // src/components/playground/VariablesPanel.js
 import React from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Code, BracketsIcon } from 'lucide-react';
 import { usePlaygroundState } from '../../hooks/usePlaygroundState';
+
+// Custom BracketsIcon if not available in Lucide
+const CustomBracketsIcon = ({ size = 16, className = "" }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M7 8L3 12L7 16"></path>
+    <path d="M17 8L21 12L17 16"></path>
+  </svg>
+);
 
 const VariablesPanel = () => {
   const { 
@@ -15,10 +34,16 @@ const VariablesPanel = () => {
     previewWithVariables
   } = usePlaygroundState();
 
+  // Using either the imported icon or our custom one
+  const VariableIcon = typeof BracketsIcon !== 'undefined' ? BracketsIcon : CustomBracketsIcon;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-medium text-neutral-700">Prompt Variables</h3>
+        <h3 className="font-medium text-neutral-700 flex items-center gap-2">
+          <VariableIcon size={18} className="text-primary-500" />
+          Prompt Variables
+        </h3>
         <button 
           onClick={() => setIsAddingVariable(true)}
           className="flex items-center gap-1 px-3 py-1 text-xs bg-primary-500 text-white rounded-md hover:bg-primary-600"

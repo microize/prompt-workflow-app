@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useCallback, useMemo } from 'react';
-import { promptDatabase, recentlyUsedPrompts, initialFavorites } from '../data/samplePrompts';
+import * as api from '../services/api';
+import { recentlyUsedPrompts, initialFavorites } from '../data/samplePrompts';
 import { sampleWorkflows } from '../data/sampleWorkflows';
 import { recentlyUsedWorkflows, popularWorkflows, initialFavoriteWorkflows } from '../data/workflowData';
 
@@ -23,6 +24,7 @@ export const AppContextProvider = ({ children }) => {
   const [favorites, setFavorites] = useState(initialFavorites);
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [playgroundInput, setPlaygroundInput] = useState('');
+  const [promptDatabase, setPromptDatabase] = useState([]);
   
   // State variables for workflows
   const [workflows, setWorkflows] = useState(sampleWorkflows);
@@ -51,6 +53,16 @@ export const AppContextProvider = ({ children }) => {
   // Derived state - memoize to prevent unnecessary recalculations
   const popularPrompts = useMemo(() => {
     return [...promptDatabase].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10);
+  }, [promptDatabase]);
+
+  // Fetch prompts from API
+  const fetchPrompts = useCallback(async () => {
+    try {
+      const data = await api.fetchPrompts();
+      setPromptDatabase(data);
+    } catch (error) {
+      console.error('Error fetching prompts:', error);
+    }
   }, []);
 
   // Functions for prompts
@@ -70,18 +82,21 @@ export const AppContextProvider = ({ children }) => {
     }));
   }, []);
 
-  const toggleFavorite = useCallback((prompt) => {
-    setFavorites(prevFavorites => {
-      const isFavorite = prevFavorites.some(f => f.id === prompt.id);
-      if (isFavorite) {
-        return prevFavorites.filter(f => f.id !== prompt.id);
-      } else {
-        return [...prevFavorites, {
-          ...prompt,
-          addedAt: "Today"
-        }];
-      }
-    });
+  // Updated toggleFavorite to use API
+  const toggleFavorite = useCallback(async (prompt) => {
+    try {
+      await api.togglePromptFavorite(prompt.id);
+      setFavorites(prevFavorites => {
+        const isFavorite = prevFavorites.some(f => f.id === prompt.id);
+        if (isFavorite) {
+          return prevFavorites.filter(f => f.id !== prompt.id);
+        } else {
+          return [...prevFavorites, prompt];
+        }
+      });
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   }, []);
 
   // Functions for workflows
@@ -172,7 +187,32 @@ export const AppContextProvider = ({ children }) => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [searchQuery, activeFilters]);
+  }, [searchQuery, activeFilters, promptDatabase]);
+
+  React.useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
+
+  // Fetch additional data on mount
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [recentData, popularData, favoritesData] = await Promise.all([
+          api.fetchRecentPrompts(),
+          api.fetchPopularPrompts(),
+          api.fetchFavoritePrompts()
+        ]);
+
+        setPromptDatabase(recentData); // Assuming recent prompts update the database
+        setFavorites(favoritesData);
+        // Optionally update popular prompts if needed
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Value object to provide through context - memoize to prevent unnecessary re-renders
   const value = useMemo(() => ({
@@ -224,7 +264,7 @@ export const AppContextProvider = ({ children }) => {
     toggleFavoriteWorkflow
   }), [
     // Prompts dependencies
-    favorites, searchQuery, searchResults, isLoading, activeFilters,
+    promptDatabase, favorites, searchQuery, searchResults, isLoading, activeFilters,
     selectedPrompt, playgroundInput, openPlayground,
     handleFilterClick, toggleFavorite, popularPrompts,
     

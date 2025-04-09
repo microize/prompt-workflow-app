@@ -92,9 +92,23 @@ export const usePlaygroundState = () => {
   }, []);
 
   // Add a new variable
-  const handleAddVariable = useCallback(() => {
+  const handleAddVariable = useCallback((variableObj) => {
+    if (typeof variableObj === 'object') {
+      setVariables(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          name: variableObj.name,
+          value: variableObj.value,
+          description: variableObj.description || ''
+        }
+      ]);
+      setIsAddingVariable(false);
+      return;
+    }
+
     if (newVariable.name.trim() === '') return;
-    
+
     setVariables(prev => [
       ...prev,
       {
@@ -104,7 +118,7 @@ export const usePlaygroundState = () => {
         description: newVariable.description
       }
     ]);
-    
+
     setNewVariable({ name: '', value: '', description: '' });
     setIsAddingVariable(false);
   }, [newVariable]);
@@ -114,20 +128,23 @@ export const usePlaygroundState = () => {
     setVariables(prev => prev.filter(variable => variable.id !== id));
   }, []);
 
-  // Handle file attachment
+  // Handle file attachment with auto variable creation
   const handleFileAttachment = useCallback((e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    
-    const newFiles = files.map(file => ({
-      id: Date.now() + Math.random().toString(36).substring(2, 9),
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      usedAsVariable: false,
-      variableName: file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase()
-    }));
-    
+
+    const newFiles = files.map(file => {
+      const variableName = file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase();
+      return {
+        id: Date.now() + Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        usedAsVariable: true,
+        variableName: variableName
+      };
+    });
+
     setAttachedFiles(prev => [...prev, ...newFiles]);
   }, []);
 
@@ -138,36 +155,49 @@ export const usePlaygroundState = () => {
   
   // Toggle file as variable
   const toggleFileAsVariable = useCallback((id) => {
-    setAttachedFiles(prev => prev.map(file => 
-      file.id === id ? { ...file, usedAsVariable: !file.usedAsVariable } : file
-    ));
+    setAttachedFiles(prev => prev.map(file => {
+      if (file.id === id) {
+        const updatedFile = { 
+          ...file, 
+          usedAsVariable: !file.usedAsVariable 
+        };
+
+        if (updatedFile.usedAsVariable && !updatedFile.variableName) {
+          updatedFile.variableName = file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase();
+        }
+
+        return updatedFile;
+      }
+      return file;
+    }));
   }, []);
   
-  // Update file variable name
+  // Update file variable name with improved handling
   const updateFileVariableName = useCallback((id, name) => {
+    const cleanName = name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+
     setAttachedFiles(prev => prev.map(file => 
-      file.id === id ? { ...file, variableName: name } : file
+      file.id === id ? { ...file, variableName: cleanName } : file
     ));
   }, []);
 
-  // Replace variables in prompt
+  // Replace variables in prompt with more comprehensive handling for files
   const previewWithVariables = useCallback(() => {
     let text = playgroundInput || '';
-    
-    // Replace regular variables
+
     variables.forEach(variable => {
       const regex = new RegExp(`{{\s*${variable.name}\s*}}`, 'g');
       text = text.replace(regex, variable.value);
     });
-    
-    // Replace file variables
+
     attachedFiles
       .filter(file => file.usedAsVariable)
       .forEach(file => {
-        const regex = new RegExp(`{{\s*${file.variableName}\s*}}`, 'g');
+        const varName = file.variableName || file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase();
+        const regex = new RegExp(`{{\s*${varName}\s*}}`, 'g');
         text = text.replace(regex, `[FILE: ${file.name}]`);
       });
-      
+
     return text;
   }, [playgroundInput, variables, attachedFiles]);
   

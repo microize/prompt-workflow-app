@@ -1,6 +1,6 @@
 // src/components/playground/FilesPanel.js
-import React, { useRef } from 'react';
-import { Paperclip, X, Plus, FileText } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Paperclip, X, Plus, FileText, Code } from 'lucide-react';
 import { usePlaygroundState } from '../../hooks/usePlaygroundState';
 
 const FilesPanel = () => {
@@ -9,7 +9,9 @@ const FilesPanel = () => {
     handleFileAttachment, 
     handleRemoveFile,
     toggleFileAsVariable,
-    updateFileVariableName
+    updateFileVariableName,
+    variables,
+    handleAddVariable
   } = usePlaygroundState();
   
   const fileInputRef = useRef(null);
@@ -18,12 +20,44 @@ const FilesPanel = () => {
     fileInputRef.current?.click();
   };
 
+  // Automatically create a variable when a file is added
+  useEffect(() => {
+    // Find files that are not used as variables yet
+    const unassignedFiles = attachedFiles.filter(file => !file.usedAsVariable);
+    
+    // For each unassigned file, toggle it to be used as a variable
+    unassignedFiles.forEach(file => {
+      toggleFileAsVariable(file.id);
+      
+      // Create a corresponding variable if it doesn't exist
+      const variableName = file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase();
+      const filePathValue = `[FILE: ${file.name}]`;
+      
+      // Check if variable already exists
+      const existingVariable = variables.find(v => v.name === variableName);
+      if (!existingVariable) {
+        // Create a new variable object for this file
+        const newVar = {
+          name: variableName,
+          value: filePathValue,
+          description: `Variable for file: ${file.name}`
+        };
+        
+        // Add the variable
+        handleAddVariable(newVar);
+      }
+    });
+  }, [attachedFiles, toggleFileAsVariable, variables, handleAddVariable]);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-medium text-neutral-700">Attached Files</h3>
+        <h3 className="font-medium text-neutral-700 flex items-center gap-2">
+          <Paperclip size={18} className="text-primary-500" />
+          Attached Files
+        </h3>
         <label className="flex items-center gap-1 px-3 py-1 text-xs bg-primary-500 text-white rounded-md hover:bg-primary-600 cursor-pointer">
-          <Paperclip size={14} />
+          <Plus size={14} />
           Attach File
           <input 
             ref={fileInputRef}
@@ -36,7 +70,7 @@ const FilesPanel = () => {
       </div>
       
       <p className="text-sm text-neutral-500">
-        Files will be available to the model during processing. You can also use files as variables in your prompt.
+        Files will be automatically assigned to variables for use in your prompt.
       </p>
       
       {attachedFiles.length > 0 ? (
@@ -62,13 +96,22 @@ const FilesPanel = () => {
       
       {attachedFiles.length > 0 && (
         <div className="mt-4 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-          <h4 className="text-sm font-medium text-neutral-700 mb-2">Using Files in Prompts</h4>
+          <h4 className="text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+            <Code size={14} className="text-primary-500" />
+            Using Files in Prompts
+          </h4>
           <div className="text-sm text-neutral-600">
-            <p className="mb-2">Files can be used in two ways:</p>
-            <ol className="list-decimal pl-5 space-y-1">
-              <li>Automatically processed by the model when referenced</li>
-              <li>Used as variables with the syntax: <code className="px-1 py-0.5 bg-neutral-100 rounded font-mono">{'{{'}file_variable_name{'}}'}</code></li>
-            </ol>
+            <p className="mb-2">Your files are now available as variables with this syntax:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              {attachedFiles.map(file => (
+                <li key={file.id}>
+                  <code className="px-1 py-0.5 bg-neutral-100 rounded font-mono">
+                    {`{{${file.variableName || file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase()}}}`}
+                  </code>
+                  <span className="text-neutral-500 ml-2">{file.name}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -120,7 +163,7 @@ const FileListItem = ({ file, onRemove, onToggleVariable, onUpdateVariableName }
       {file.usedAsVariable && (
         <input
           type="text"
-          value={file.variableName}
+          value={file.variableName || file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase()}
           onChange={(e) => onUpdateVariableName(file.id, e.target.value)}
           placeholder="Variable name"
           className="w-32 px-2 py-1 text-xs border border-neutral-300 rounded"
@@ -137,4 +180,5 @@ const FileListItem = ({ file, onRemove, onToggleVariable, onUpdateVariableName }
   </li>
 );
 
+// Ensure the component is exported as default
 export default FilesPanel;

@@ -1,0 +1,30 @@
+[
+    {
+      "model": "api.prompt",
+      "pk": 1,
+      "fields": {
+        "text": "Create a landing page for a SaaS product",
+        "title": "SaaS Landing Page",
+        "category": "web",
+        "usage_count": 243,
+        "tags": "Marketing,Web Design,SaaS",
+        "favorite": true,
+        "created_at": "2025-04-01T10:00:00Z",
+        "updated_at": "2025-04-01T10:00:00Z"
+      }
+    },
+    {
+      "model": "api.workflow",
+      "pk": 1,
+      "fields": {
+        "name": "Content Marketing Pipeline",
+        "description": "Generate blog post ideas, outlines, and full articles",
+        "category": "marketing",
+        "data": {"nodes": [], "connections": []},
+        "usage_count": 521,
+        "favorite": true,
+        "created_at": "2025-04-01T10:00:00Z",
+        "updated_at": "2025-04-01T10:00:00Z"
+      }
+    }
+  ]
